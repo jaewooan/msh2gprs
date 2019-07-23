@@ -215,6 +215,12 @@ void YamlParser::section_domain_props(const YAML::Node & node,
         config.mechanics_domain_file = it->second.as<std::string>();
       continue;
     }
+    else if (key == "discretization")
+    {
+      const std::string disc_name = it->second.as<std::string>();
+      if (disc_name == "TPFA")
+        config.discretization == Discretization::TPFA;
+    }
     else if (key == "domain")
     {
       int label;
@@ -243,7 +249,10 @@ void YamlParser::section_domain_props(const YAML::Node & node,
       domain(it->second, var_type, conf);
     }
     else
-      std::cout << "attribute " << key << " unknown: skipping" << std::endl;
+    {
+      std::cout << "attribute " << key << " unknown" << std::endl;
+      throw std::invalid_argument(key);
+    }
   }
 
 }

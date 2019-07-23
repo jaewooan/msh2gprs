@@ -1,0 +1,14 @@
+Mesh file: geom.msh
+
+Domain Flow Properties:
+  discretization: TPFA
+  # domain id is matched with the physical volume id in gmsh
+  domain:
+    label: 9999991
+    Coupled: true                  # true/false on by default
+    RTEMP: 340
+    PORO: 0.2
+    PERM: 10
+    SWAT: 0.0
+    PRESSURE: 100
+

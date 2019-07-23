@@ -21,6 +21,12 @@ enum OutputFormat
 };
 
 
+enum Discretization
+{
+  TPFA
+};
+
+
 struct DomainConfig
 {
   int label;
@@ -94,6 +100,8 @@ struct SimdataConfig
   std::vector<BCConfig>                bc_faces;
   std::vector<BCNodeConfig>            bc_nodes;
   std::vector<WellConfig>              wells;
+
+  Discretization discretization = Discretization::TPFA;
 
   EDFMMethod edfm_method = EDFMMethod::simple;       // method to simulate flow in embedded fracs
 
