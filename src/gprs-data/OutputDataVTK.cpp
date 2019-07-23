@@ -36,7 +36,7 @@ void OutputDataVTK::save_reservoir_data(const std::string & fname)
     vector<double> property(grid.n_cells());
     const string keyword = data.rockPropNames[ivar];
     for (auto cell = grid.begin_cells(); cell != grid.end_cells(); ++cell)
-      property[cell.index()] = data.vsCellRockProps[cell.index()].v_props[ivar];
+      property[cell.index()] = data.vsCellRockProps[cell.index()][ivar];
 
     IO::VTKWriter::add_cell_data(property, keyword, out);
   }

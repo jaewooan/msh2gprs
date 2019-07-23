@@ -1,18 +1,25 @@
 #include "DiscretizationTPFA.hpp"
 #include "angem/Point.hpp"
+#include "angem/Tensor2.hpp"
 
 namespace discretization
 {
 
 using Point = angem::Point<3,double>;
+using Tensor = angem::Tensor2<3,double>;
 
-DiscretizationTPFA::DiscretizationTPFA(const mesh::Mesh & grid)
+DiscretizationTPFA::
+DiscretizationTPFA(const mesh::Mesh                                    & grid,
+                   const std::set<int>                                 & dfm_markers,
+                   const std::unordered_map<std::size_t, PhysicalFace> & dfm_faces,
+                   const std::vector<std::vector<double>>              & props,
+                   const std::vector<std::string>                      & keys)
     :
-    DiscretizationBase(grid)
+    DiscretizationBase(grid, dfm_markers, dfm_faces, props, keys)
 {}
 
 
-void DiscretizationTPFA::init()
+void DiscretizationTPFA::build()
 {
   for (auto face = grid.begin_faces(); face != grid.end_faces(); ++face)
   {
@@ -34,9 +41,10 @@ void DiscretizationTPFA::build(const mesh::const_face_iterator & face)
     const Point d1 = cell0.center() - center_face;
     const Point d2 = cell1.center() - center_face;
 
-    // if (not fracture)
+    if (!is_fracture(face.marker()))
     {
-    //   f->UnitNormal(nrmf);
+      const Point n = face.normal();
+      const Tensor K = get_permeability(cell0.index());
 
     //   int ret1 = transposed_tensor_prod(Ktype, cell0->RealArray(K), nrmf, f1);
     }

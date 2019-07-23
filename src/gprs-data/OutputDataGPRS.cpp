@@ -249,7 +249,7 @@ void OutputDataGPRS::saveGeomechDataNewKeywords(const std::string file_name)
       for (auto cell = grid.begin_cells(); cell != grid.end_cells(); ++cell)
       {
         const std::size_t icell = cell.index();
-        geomechfile << data.vsCellRockProps[icell].v_props[ivar] << "\t";
+        geomechfile << data.vsCellRockProps[icell][ivar] << "\t";
         if ((icell + 1) % n_entries_per_line == 0)
           geomechfile << std::endl;
       }

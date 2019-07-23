@@ -1113,17 +1113,17 @@ void SimData::defineRockProperties()
         }
 
         // copy vars to cell properties
-        vsCellRockProps[cell.index()].v_props.resize(n_variables - shift);
+        vsCellRockProps[cell.index()].resize(n_variables - shift);
         // start from 3 to skip x,y,z
         for (std::size_t j=shift; j<n_variables; ++j)
         {
           try
           {
-            vsCellRockProps[cell.index()].v_props[j - shift] = vars[j];
+            vsCellRockProps[cell.index()][j - shift] = vars[j];
           }
           catch (std::out_of_range & e)
           {
-            vsCellRockProps[cell.index()].v_props[j - shift] = 0;
+            vsCellRockProps[cell.index()][j - shift] = 0;
           }
         }
       }  // end match label
@@ -1405,13 +1405,13 @@ double SimData::get_property(const std::size_t cell,
   if (ikey == rockPropNames.size())
       throw std::out_of_range(key);
 
-  if (ikey >= vsCellRockProps[cell].v_props.size())
+  if (ikey >= vsCellRockProps[cell].size())
     throw std::out_of_range("You most probably haven't specified props for this part of domain");
 
   if (cell >= vsCellRockProps.size())
     throw std::out_of_range(std::to_string(cell));
 
-  return vsCellRockProps[cell].v_props[ikey];
+  return vsCellRockProps[cell][ikey];
 }
 
 
@@ -1696,7 +1696,7 @@ void SimData::meshFractures()
           for (std::size_t j=0; j<n_vars; ++j)
             if (config.expression_type[j] == 0)
             {
-              new_custom_data[counter] += vsCellRockProps[neighbor].v_props[j];
+              new_custom_data[counter] += vsCellRockProps[neighbor][j];
               counter++;
             }
         }
@@ -1741,10 +1741,6 @@ void SimData::meshFractures()
         new_cell.porosity = flow_data.cells[old_shift + i].porosity;
         new_cell.depth = flow_data.cells[old_shift + i].depth;
         new_cell.custom = flow_data.cells[old_shift + i].custom;
-        // new_flow_data.volumes.push_back(flow_data.volumes[old_shift + i]);
-        // new_flow_data.poro.push_back(flow_data.poro[old_shift + i]);
-        // new_flow_data.depth.push_back(flow_data.depth[old_shift + i]);
-        // new_flow_data.custom_data.push_back(flow_data.custom_data[old_shift + i]);
       }
     }
 
@@ -2003,9 +1999,12 @@ void SimData::computeFlowDiscretization()
   switch (config.discretization)
   {
     case Discretization::TPFA :
-      p_discr = make_unique<discretization::DiscretizationTPFA>(grid);
+      p_discr = make_unique<discretization::DiscretizationTPFA>
+                (grid, fracture_face_markers, dfm_faces,
+                 vsCellRockProps, rockPropNames);
       break;
   }
+  p_discr->build();
 }
 
 }  // end namespace

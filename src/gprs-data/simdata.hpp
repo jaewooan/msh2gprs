@@ -52,21 +52,6 @@ struct RockProps
 };
 
 
-struct PhysicalFace
-{
-  int ntype;
-  std::size_t nface;
-  int nmark;
-  int ifracture;
-  std::size_t nfluid;
-  bool coupled;
-  angem::Point<3,double> condition;
-  std::vector<std::size_t> neighbor_cells;
-  double aperture;
-  double conductivity;
-};
-
-
 // struct SimpleWell
 // {
 //   vector<double> vRadiusPoisk;
@@ -224,7 +209,7 @@ public:
   mesh::SurfaceMesh<double> dfm_master_grid;
 
   // container for cell properties (user-defined)
-  std::vector<RockProps> vsCellRockProps;
+  std::vector<std::vector<double>> vsCellRockProps;
   // ass user-defined names for rock properties
   std::vector<std::string> rockPropNames;
 
