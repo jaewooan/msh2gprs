@@ -11,9 +11,11 @@
 #include "element.hpp"
 #include "renum.hpp"
 #include "transes.hpp"
+#include "discretization/DiscretizationBase.hpp"
 // #include "GElement.hpp"
 
 #include "angem/Point.hpp"
+#include "angem/Tensor2.hpp"
 #include "angem/PolyGroup.hpp"
 #include "angem/Collisions.hpp"
 #include "mesh/SurfaceMesh.hpp"
@@ -128,6 +130,8 @@ public:
   void handleConnections();
   // compute flow data without edfm fracs (reservoir and dfm only)
   void computeReservoirTransmissibilities();
+  // compute flow discretization
+  void computeFlowDiscretization();
   // high-level method that combines everything related to embedded frac flow
   void handleEmbeddedFractures();
   // compute flow data withich a single edfm fracture
@@ -169,7 +173,8 @@ protected:
   double get_property(const std::size_t cell,
                       const std::string & key) const;
   // wrapper around get_property that aborts if no perm data available
-  angem::Point<3,double> get_permeability(const std::size_t cell) const;
+  // angem::Point<3,double> get_permeability(const std::size_t cell) const;
+  angem::Tensor2<3,double> get_permeability(const std::size_t cell) const;
   // wrapper around get_property that aborts if no perm data available
   double get_volume_factor(const std::size_t cell) const;
   // compute flow data between two edfm fracs
@@ -271,6 +276,7 @@ protected:
   StandardElements * pStdElement;
   // class that performs vertex renumbering  after dfm split for faster computation
   // renum * pRenum;
+  std::unique_ptr<discretization::DiscretizationBase> p_discr;
 };
 
 }

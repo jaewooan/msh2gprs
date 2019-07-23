@@ -13,6 +13,8 @@ ADD_LIBRARY(gprs_data
   MultiScaleDataMSRSB.cpp
   MultiScaleDataMech.cpp
   UnionFind.cpp
+  discretization/DiscretizationBase.cpp
+  discretization/DiscretizationTPFA.cpp
 )
 
 SET_TARGET_PROPERTIES (
