@@ -311,6 +311,10 @@ void GmshReader::read_gmsh4_input(std::fstream & mesh_file,
   std::cout << "\tn_vertices = " << n_vertices << std::endl;
   mesh.vertices.points.reserve(n_vertices);
 
+  // node tags are not exactly indices of nodes
+  // they are used in elements so I have to record those
+  std::vector<size_t> node_tags(n_vertices);
+
   size_t vertex = 0;
   while (vertex < n_vertices)
   {
@@ -325,6 +329,10 @@ void GmshReader::read_gmsh4_input(std::fstream & mesh_file,
     {
       size_t node_tag;
       mesh_file >> node_tag;  // nodeTag
+      // node_tags[vertex + j] = node_tag;
+      if (node_tag > node_tags.size())
+        node_tags.resize(node_tags.size() * 2);
+      node_tags[node_tag] = vertex+j;
     }
 
     // read vertices
@@ -334,9 +342,8 @@ void GmshReader::read_gmsh4_input(std::fstream & mesh_file,
       angem::Point<dim,double> coords;
       for (int d=0; d<dim; ++d) mesh_file >> coords[d];
 
-      // warning if duplicates
       const std::size_t new_ind = mesh.vertices.insert(coords);
-      // mesh.vertices.points.push_back(vertex);
+      // warning if duplicates
       if (new_ind != mesh.vertices.points.size() - 1)
       {
         std::cout << "WARNING: duplicate entry in gmsh file "
@@ -347,6 +354,8 @@ void GmshReader::read_gmsh4_input(std::fstream & mesh_file,
     } // endonodes
   }
 
+  std::cout << "mesh.n_vertices() = " << mesh.n_vertices() << std::endl;
+  assert(mesh.n_vertices() == n_vertices);
 
   //  read until elements
   while(entry != "$Elements")
@@ -374,8 +383,8 @@ void GmshReader::read_gmsh4_input(std::fstream & mesh_file,
   while (element < n_elements)
   {
     // line 2: block of data
-    // entityDim(int) entityTag(int)
-    // elementType(int; see below) numElementsInBlock(size_t)
+    // entityDim(int) entityTag(int) elementType(int) numElementsInBlock(size_t)
+    // elementTag(size_t) nodeTag(size_t) ...
     getline(mesh_file, line);
     std::istringstream iss(line);
     std::vector<std::string> tokens{std::istream_iterator<std::string>{iss},
@@ -386,6 +395,10 @@ void GmshReader::read_gmsh4_input(std::fstream & mesh_file,
     const int entity_dim = std::atoi(tokens[0].c_str());
     const int entity_tag = std::atoi(tokens[1].c_str());
     const int element_type = std::atoi(tokens[2].c_str());
+    std::size_t n_elements_in_block;
+    std::stringstream sstream(tokens[3]);
+    sstream >> n_elements_in_block;
+
     const int vtk_id = get_vtk_index(element_type);
     const int n_element_vertices = map_vtk_element_size[vtk_id];
     int physical_tag;
@@ -394,9 +407,6 @@ void GmshReader::read_gmsh4_input(std::fstream & mesh_file,
     if (entity_dim == 3)
       physical_tag = volume_tags[entity_tag];
 
-    std::size_t n_elements_in_block;
-    std::stringstream sstream(tokens[3]);
-    sstream >> n_elements_in_block;
     std::vector<std::size_t> vertices(n_element_vertices);
 
     if (entity_dim == 3)
@@ -414,7 +424,17 @@ void GmshReader::read_gmsh4_input(std::fstream & mesh_file,
 
       // fill node indices
       for (int j = vert_shift; j<tokens.size(); j++)
-        vertices[j-vert_shift] = std::atoi(tokens[j].c_str()) - 1;
+        vertices[j-vert_shift] = node_tags[std::atoi(tokens[j].c_str())];
+
+      for (const size_t v : vertices)
+        if (v >= mesh.n_vertices())
+        {
+          std::cout << "v = " << v << std::endl;
+          throw std::invalid_argument("Wrong entry: " + line +
+                                      "(num vertices = " +
+                                      std::to_string(mesh.n_vertices()) +
+                                      ")");
+        }
 
       if (entity_dim == 2)  // faces
         mesh.insert_face(vertices, vtk_id, physical_tag);
