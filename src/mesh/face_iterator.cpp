@@ -60,8 +60,9 @@ int face_iterator::marker() const
 
 std::vector<Point> face_iterator::vertices() const
 {
-  std::vector<std::size_t> ivertices(invert_hash(face_it->first));
-  return get_vertex_coordinates(p_mesh_vertices, ivertices);
+  // std::vector<std::size_t> ivertices(invert_hash(face_it->first));
+  // return get_vertex_coordinates(p_mesh_vertices, ivertices);
+  return get_vertex_coordinates(p_mesh_vertices, face_it->second.ordered_indices);
 }
 
 
@@ -81,6 +82,12 @@ Point face_iterator::normal() const
 angem::Polygon<double> face_iterator::polygon() const
 {
   return angem::Polygon<double>(vertices());
+}
+
+
+double face_iterator::area() const
+{
+  return polygon().area();
 }
 
 

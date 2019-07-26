@@ -57,6 +57,8 @@ class const_face_iterator
   std::vector<std::size_t> vertex_indices() const;
   // get angem::Polygon from vertices
   angem::Polygon<double> polygon() const;
+  // get surface of the face
+  double area() const;
   // incrementing
   // increment operator
   const_face_iterator & operator++();

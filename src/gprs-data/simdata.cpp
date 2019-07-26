@@ -1833,8 +1833,8 @@ void SimData::setupSimpleWell(Well & well)
       // with cell
       const double h = (p_poly_cell->center() -
                         p_poly_cell->get_points()[0]).norm();
-      const Point p1 = well.coordinate - direction*h*10;
-      const Point p2 = well.coordinate + direction*h*10;
+      const Point p1 = well.coordinate - direction*h*10.;
+      const Point p2 = well.coordinate + direction*h*10.;
       std::vector<Point> section_data;
       if (angem::collision(p1, p2, *p_poly_cell, section_data, 1e-6))
       {
@@ -2000,11 +2000,12 @@ void SimData::computeFlowDiscretization()
   {
     case Discretization::TPFA :
       p_discr = make_unique<discretization::DiscretizationTPFA>
-                (grid, fracture_face_markers, dfm_faces,
+                (grid, fracture_face_markers, 
                  vsCellRockProps, rockPropNames);
       break;
   }
   p_discr->build();
+  exit(0);
 }
 
 }  // end namespace

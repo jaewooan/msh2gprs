@@ -73,14 +73,27 @@ std::vector<std::size_t> const_face_iterator::vertex_indices() const
 
 Point const_face_iterator::normal() const
 {
-  const auto poly = angem::Polygon<double>(vertices());
+  const auto poly = polygon();
   return poly.plane.normal();
 }
 
 
 angem::Polygon<double> const_face_iterator::polygon() const
 {
-  return angem::Polygon<double>(vertices());
+  try
+  {
+    return angem::Polygon<double>(vertices());
+  }
+  catch (std::runtime_error & e)
+  {
+    throw std::runtime_error("invalid face " + std::to_string(index()));
+  }
+}
+
+
+double const_face_iterator::area() const
+{
+  return polygon().area();
 }
 
 

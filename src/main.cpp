@@ -105,11 +105,12 @@ int main(int argc, char *argv[])
   cout << "Create physical facets" << endl;
   preprocessor.definePhysicalFacets();
 
-  std::cout << "computing reservoir transes" << std::endl;
-  preprocessor.computeReservoirTransmissibilities();
+  // std::cout << "computing reservoir transes" << std::endl;
+  // preprocessor.computeReservoirTransmissibilities();
+  preprocessor.computeFlowDiscretization();
 
-  std::cout << "Handle flow embedded fractures" << std::endl;
-  preprocessor.handleEmbeddedFractures();
+  // std::cout << "Handle flow embedded fractures" << std::endl;
+  // preprocessor.handleEmbeddedFractures();
 
   // timur's legacy
   // cout << "Create simple wells" << endl;

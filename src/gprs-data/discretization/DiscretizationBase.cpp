@@ -6,16 +6,16 @@ namespace discretization
 DiscretizationBase::
 DiscretizationBase(const mesh::Mesh                                    & grid,
                    const std::set<int>                                 & dfm_markers,
-                   const std::unordered_map<std::size_t, PhysicalFace> & dfm_faces,
                    const std::vector<std::vector<double>>              & props,
                    const std::vector<std::string>                      & keys)
     : grid(grid),
       dfm_markers(dfm_markers),
-      dfm_faces(dfm_faces),
       props(props),
       keys(keys)
 {
   infer_perm_assignment();
+  infer_poro_assignment();
+  infer_custom_keys();
 }
 
 
@@ -40,28 +40,100 @@ DiscretizationBase::get_permeability(const std::size_t cell) const
 }
 
 
+double DiscretizationBase::get_porosity(const std::size_t cell) const
+{
+  assert(cell < props.size());
+  assert(poro_key > 0 && poro_key < keys.size());
+  return props[cell][poro_key];
+}
+
+
 void DiscretizationBase::infer_perm_assignment()
 {
   bool found_perm_x = false;
   bool found_perm_y = false;
   bool found_perm_z = false;
-  bool found_perm = false;
   for (std::size_t i = 0; i < keys.size(); i++)
   {
     const auto & key = keys[i];
-    if (key == "PERMX") perm_keys[0] = i;
-    if (key == "PERMY") perm_keys[1*3 + 1] = i;
-    if (key == "PERMZ") perm_keys[2*3 + 2] = i;
-    if (key == "PERM")
+    if (key == "PERMX")
+    {
+      found_perm_x = true;
+      perm_keys[0] = i;
+    }
+    else if (key == "PERMY")
+    {
+      found_perm_y = true;
+      perm_keys[1*3 + 1] = i;
+    }
+    else if (key == "PERMZ")
+    {
+      found_perm_z = true;
+      perm_keys[2*3 + 2] = i;
+    }
+    else if (key == "PERM")
     {
       perm_keys[0] = i;
       perm_keys[1*3 + 1] = i;
       perm_keys[2*3 + 2] = i;
+      found_perm_x = true;
+      found_perm_y = true;
+      found_perm_z = true;
     }
   }
 
+  if (found_perm_x)
+    if (found_perm_y)
+      if (found_perm_z)
+        return;
+
   throw std::invalid_argument("permebility is undefined");
   return;
+}
+
+
+void DiscretizationBase::infer_custom_keys()
+{
+    for (size_t j = 0; j < keys.size(); j++)
+    {
+      if (std::find(perm_keys.begin(), perm_keys.end(), j) != perm_keys.end() and
+          j != poro_key)
+        custom_keys.push_back(j);
+    }
+}
+
+
+
+void DiscretizationBase::infer_poro_assignment()
+{
+  for (std::size_t i = 0; i < keys.size(); i++)
+  {
+    const auto & key = keys[i];
+    if (key == "PORO")
+    {
+      poro_key = i;
+      return;
+    }
+  }
+
+  throw std::invalid_argument("porosity is undefined");
+}
+
+
+void DiscretizationBase::build_cell_data()
+{
+  cell_data.resize(grid.n_cells());
+  for (auto cell = grid.begin_cells(); cell != grid.end_cells(); ++cell)
+  {
+    const std::size_t i = cell.index();
+    auto & data = cell_data[i];
+    data.porosity = get_porosity(i);
+    data.volume = cell.volume() * data.porosity;
+    data.depth = -cell.center()[2];
+    data.custom.resize(custom_keys.size());
+    for (size_t j = 0; j < custom_keys.size(); ++j)
+      data.custom[j] = props[i][custom_keys[j]];
+  }
 }
 
 }
