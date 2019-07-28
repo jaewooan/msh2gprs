@@ -1,5 +1,6 @@
 #pragma once
 
+#include "BoundaryConditionType.hpp"
 #include "angem/Polygon.hpp"
 
 #include <map>
@@ -51,7 +52,7 @@ struct BCNodeConfig
 struct BCConfig
 {
   int label;
-  int type;
+  gprs_data::BoundaryConditionType type;
   angem::Point<3,double> value;
 };
 
@@ -142,6 +143,8 @@ struct SimdataConfig
   std::string edfm_grid_vtk_file      = "efrac.vtk";
   std::string dfm_grid_vtk_file       = "dfm.vtk";
   std::string wells_vtk_file          = "wells.vtk";
+  // Units
+  double transmissibility_units = 0.0085267146719160104986876640419948;
 };
 
 

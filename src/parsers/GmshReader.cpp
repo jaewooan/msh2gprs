@@ -303,7 +303,7 @@ void GmshReader::read_gmsh4_input(std::fstream & mesh_file,
    * ...
    * x(double) y(double) z(double) */
 
-  mesh_file >> entry;  // numEntityBlocks
+  std::size_t n_entity_blocks; mesh_file >> n_entity_blocks;  // numEntityBlocks
   std::size_t n_vertices; mesh_file >> n_vertices;  // numNodes
   mesh_file >> entry;  // minNodeTag
   mesh_file >> entry;  // maxNodeTag
@@ -316,23 +316,33 @@ void GmshReader::read_gmsh4_input(std::fstream & mesh_file,
   std::vector<size_t> node_tags(n_vertices);
 
   size_t vertex = 0;
-  while (vertex < n_vertices)
+  // while (vertex < n_vertices)
+  for (std::size_t b = 0; b < n_entity_blocks; b++)
   {
-    mesh_file >> entry;  // entityDim (0 for vertices)
-    mesh_file >> entry;  // entityTag
-    mesh_file >> entry;  // parametric
-    std::size_t n_nodes_in_block;
-    mesh_file >> n_nodes_in_block;  // numNodesInBlock(size_t)
+    int entity_dim; mesh_file >> entity_dim;  // entityDim (0 for vertices)
+    int entity_tag; mesh_file >> entity_tag;  // entityTag
+    bool parametric; mesh_file >> parametric;  // parametric
+    std::size_t n_nodes_in_block; mesh_file >> n_nodes_in_block;  // numNodesInBlock(size_t)
 
-    // skip node tags
+    // if (entity_dim != 0)
+    if (parametric)
+    {
+      std::cout << entity_dim << " "
+                << entity_tag << " "
+                << parametric << " "
+                << n_nodes_in_block
+                << std::endl;
+      throw std::invalid_argument("wrong entity dim for node block");
+    }
+
+    // read node tags
     for (std::size_t j=0; j<n_nodes_in_block; ++j)
     {
       size_t node_tag;
       mesh_file >> node_tag;  // nodeTag
-      // node_tags[vertex + j] = node_tag;
       if (node_tag > node_tags.size())
         node_tags.resize(node_tags.size() * 2);
-      node_tags[node_tag] = vertex+j;
+      node_tags[node_tag] = vertex + j;
     }
 
     // read vertices
@@ -359,7 +369,10 @@ void GmshReader::read_gmsh4_input(std::fstream & mesh_file,
 
   //  read until elements
   while(entry != "$Elements")
+  {
     mesh_file >> entry;
+    std::cout << "skip entry " << entry << std::endl;
+  }
 
   // line 1:
   //  numEntityBlocks(size_t) numElements(size_t)
@@ -422,7 +435,10 @@ void GmshReader::read_gmsh4_input(std::fstream & mesh_file,
                                       std::istream_iterator<std::string>{}};
       static const int vert_shift = 1;  // index of first vertex in line
 
-      // fill node indices
+      if (tokens.size() - vert_shift != n_element_vertices)
+        throw std::invalid_argument("wrong element");
+
+      //  fill node indices
       for (int j = vert_shift; j<tokens.size(); j++)
         vertices[j-vert_shift] = node_tags[std::atoi(tokens[j].c_str())];
 
@@ -440,6 +456,20 @@ void GmshReader::read_gmsh4_input(std::fstream & mesh_file,
         mesh.insert_face(vertices, vtk_id, physical_tag);
       if (entity_dim == 3)  // cells
         mesh.insert_cell(vertices, vtk_id, physical_tag);
+
+
+      // if (mesh.n_cells() == 9)
+      // {
+      //   std::cout << "cell = " << element << std::endl;
+      //   for (const size_t v : vertices)
+      //     std::cout << v << " ";
+      //   std::cout << std::endl;
+      //   std::cout << "line: " ;
+      //   std::cout << line << std::endl;
+      //   // exit(0);
+      // }
+
+
 
       element++;
     }

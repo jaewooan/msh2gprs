@@ -90,7 +90,7 @@ class connection_map_const_iterator : public std::iterator<std::forward_iterator
   bool operator!=(const connection_map_const_iterator<DataType> & other) const;
   connection_map_const_iterator operator++() {map_it++; return *this;}
   // data access operator
-  DataType & operator*() const {return data[map_it->second];}
+  const DataType & operator*() const {return data[map_it->second];}
   // get element indices from connection iterator
   inline std::pair<std::size_t,std::size_t> elements() const
   {return invert_hash(map_it->first);}

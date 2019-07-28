@@ -13,7 +13,7 @@ OutputDataVTK::OutputDataVTK(const SimData & sim_data, const mesh::Mesh & grid)
 void OutputDataVTK::write_output(const std::string & output_path)
 {
   save_reservoir_data(output_path + data.config.reservoir_grid_vtk_file);
-  if (data.dfm_faces.size() > 0)
+  if (data.flow_dfm_faces.size() > 0)
     save_dfm_data(output_path + data.config.discrete_frac_file);
   if (!data.vEfrac.empty())
     save_edfm_data(output_path + data.config.efrac_file);

@@ -12,6 +12,7 @@
 #include "mesh/Mesh.hpp" // 3D mesh format
 // parser for user-defined expressions for reservoir data
 #include "discretization/DiscretizationTPFA.hpp"
+#include "discretization/DiscretizationDFM.hpp"
 #include "muparser/muParser.h"
 #include "MultiScaleDataMSRSB.hpp"
 #include "MultiScaleDataMech.hpp"
@@ -351,7 +352,7 @@ void SimData::computeReservoirTransmissibilities()
   //   calc.vvFNodes[ipoly] = face.vertex_indices();
 
   //   if (is_fracture(face.marker()))
-  //     calc.vCodePolygon[ipoly] = dfm_faces.find(face.index())->second.nfluid;
+  //     calc.vCodePolygon[ipoly] = dfm_faces.find(face.index())->second.cv_index;
   //   else  // non-frac faces
   //     calc.vCodePolygon[ipoly] = -1;
   // }
@@ -379,7 +380,7 @@ void SimData::computeReservoirTransmissibilities()
   // {
   //   if (it.second.coupled)  // if active
   //   {
-  //     const int i = static_cast<int>(it.second.nfluid);
+  //     const int i = static_cast<int>(it.second.cv_index);
   //     calc.vZoneCode[i] = i;
   //     calc.vZVolumeFactor[i] = it.second.aperture;
   //     calc.vZPorosity[i] = 1.0;
@@ -477,7 +478,7 @@ void SimData::computeReservoirTransmissibilities()
   //       for (std::size_t j=0; j<n_vars; ++j)
   //         if (config.expression_type[j] == 0)
   //         {
-  //           const std::size_t ielement = dfm_faces[face.index()].nfluid;
+  //           const std::size_t ielement = dfm_faces[face.index()].cv_index;
   //           flow_data.cells[ielement].custom.push_back(vsCellRockProps[icell].v_props[j]);
   //         }
   //     }
@@ -498,7 +499,7 @@ void SimData::computeReservoirTransmissibilities()
 std::size_t SimData::efrac_flow_index(const std::size_t ifrac,
                                       const std::size_t ielement) const
 {
-  std::size_t result = n_flow_dfm_faces + grid.n_cells();
+  std::size_t result = flow_dfm_faces.size() + grid.n_cells();
   for (std::size_t i=0; i<ifrac; ++i)
     result += vEfrac[i].mesh.n_polygons();
 
@@ -1148,49 +1149,50 @@ void SimData::splitInternalFaces()
 void SimData::handleConnections()
 {
   std::cout << "handle connections" << std::endl;
+  abort();
   // gm_cell_to_flow_cell.resize(flow_data.volumes.size());
-  gm_cell_to_flow_cell.resize(grid.n_cells(), std::vector<std::size_t>());
+  // gm_cell_to_flow_cell.resize(grid.n_cells(), std::vector<std::size_t>());
 
-  // cells
-  for (auto cell = grid.begin_cells(); cell!=grid.end_cells(); ++cell)
-    for (const auto & conf : config.domains)
-    {
-      if (cell.marker() == conf.label) // cells
-        if (conf.coupled)
-        {
-          gm_cell_to_flow_cell[cell.index()].push_back(n_flow_dfm_faces + cell.index());
-          break;
-        }
-    }
+  // // cells
+  // for (auto cell = grid.begin_cells(); cell!=grid.end_cells(); ++cell)
+  //   for (const auto & conf : config.domains)
+  //   {
+  //     if (cell.marker() == conf.label) // cells
+  //       if (conf.coupled)
+  //       {
+  //         gm_cell_to_flow_cell[cell.index()].push_back(n_flow_dfm_faces + cell.index());
+  //         break;
+  //       }
+  //   }
 
-  // finally embedded fractures
-  for (std::size_t ifrac=0; ifrac<vEfrac.size(); ++ifrac)
-  {
-    const auto & efrac = vEfrac[ifrac];
-    for (std::size_t i=0; i<efrac.cells.size(); ++i)
-    {
-      const std::size_t icell = efrac.cells[i];
-      for (const auto & conf: config.domains)
-        if (grid.cell_markers[icell] == conf.label and conf.coupled)
-          gm_cell_to_flow_cell[icell].push_back(efrac_flow_index(ifrac, i));
-    }
-  }
+  // // finally embedded fractures
+  // for (std::size_t ifrac=0; ifrac<vEfrac.size(); ++ifrac)
+  // {
+  //   const auto & efrac = vEfrac[ifrac];
+  //   for (std::size_t i=0; i<efrac.cells.size(); ++i)
+  //   {
+  //     const std::size_t icell = efrac.cells[i];
+  //     for (const auto & conf: config.domains)
+  //       if (grid.cell_markers[icell] == conf.label and conf.coupled)
+  //         gm_cell_to_flow_cell[icell].push_back(efrac_flow_index(ifrac, i));
+  //   }
+  // }
 
-  // update dfm face indices in map
-  std::unordered_set<std::size_t> face_touched;
-  std::size_t counter = 0;
-  for (auto face = grid.begin_faces(); face != grid.end_faces(); ++ face)
-    if (is_fracture(face.marker()))
-    {
-      counter++;
-      auto flow_face_it = dfm_faces.find(face.master_index());
-      auto & facet = flow_face_it->second;
-      if (face_touched.insert(face.master_index()).second)
-      {
-        facet.ifracture = find(face.marker(), fracture_face_markers);
-        facet.nface = face.index();
-      }
-    }
+  // // update dfm face indices in map
+  // std::unordered_set<std::size_t> face_touched;
+  // std::size_t counter = 0;
+  // for (auto face = grid.begin_faces(); face != grid.end_faces(); ++ face)
+  //   if (is_fracture(face.marker()))
+  //   {
+  //     counter++;
+  //     auto flow_face_it = dfm_faces.find(face.master_index());
+  //     auto & facet = flow_face_it->second;
+  //     if (face_touched.insert(face.master_index()).second)
+  //     {
+  //       facet.fracture_index = find(face.marker(), fracture_face_markers);
+  //       facet.nface = face.index();
+  //     }
+  //   }
 
   // std::cout << "n new dfm face = " << counter << std::endl;
 }
@@ -1199,7 +1201,7 @@ void SimData::handleConnections()
 void SimData::definePhysicalFacets()
 {
   std::size_t n_facets = 0;
-  int nfluid = 0;
+  int cv_index = 0;
   n_neumann_faces = 0;
   n_dirichlet_faces = 0;
 
@@ -1210,12 +1212,11 @@ void SimData::definePhysicalFacets()
     for (const auto & conf : config.bc_faces)
       if (marker == conf.label)
       {
-        PhysicalFace facet;
-        facet.nface = face.index();
+        BoundaryFace facet;
+        facet.face_index = face.index();
         facet.ntype = conf.type;
-        facet.nmark = conf.label;
+        facet.marker = conf.label;
         facet.condition = conf.value;
-        facet.coupled = false;
         boundary_faces.insert({face.index(), facet});
         boundary_face_markers.insert(marker);
         if (conf.type == 1)
@@ -1226,57 +1227,43 @@ void SimData::definePhysicalFacets()
         break;
       }
 
-    if (!is_boundary and marker != 0)
-    {
-      PhysicalFace facet;
-      facet.nface = face.index();
-      facet.ntype = 0;
-      facet.nmark = marker;
-      facet.neighbor_cells = face.neighbors();
-      fracture_face_markers.insert(marker);
-      bool coupled = false;
-      const auto neighbors = face.neighbors();
-      for (const auto & neighbor : neighbors)
-        for (const auto & conf: config.domains)
-          if (grid.cell_markers[neighbor] == conf.label and conf.coupled)
-            coupled = true;
-
-      if (coupled)
+    // if (!is_boundary and marker != 0)
+    for (const auto & conf : config.discrete_fractures)
+      if (marker == conf.label)
       {
-        facet.nfluid = nfluid;
-        facet.coupled = true;
-      }
-      else
-      {
-        facet.nfluid = -2;  // just a negative number (-2 + 1 < 0)
-        facet.coupled = false;
-      }
+        FractureFace flow_face;
+        MechanicalFractureFace mech_face;
 
-      bool found_label = false;
-      for (std::size_t ifrac=0; ifrac<config.discrete_fractures.size(); ++ifrac)
-        if( marker == config.discrete_fractures[ifrac].label)
+        flow_face.face_index = face.index();
+        flow_face.marker = marker;
+        const auto & face_neighbors = face.neighbors();
+        flow_face.neighbor_cells.first = face_neighbors[0];
+        flow_face.neighbor_cells.second = face_neighbors[1];
+        mech_face.neighbor_cells.first = face_neighbors[0];
+        mech_face.neighbor_cells.second = face_neighbors[1];
+
+        fracture_face_markers.insert(marker);
+
+        // determined if coupled to surrounding matrix
+        // (and if we need to include as a control volume)
+        bool coupled = false;
+        const auto neighbors = face.neighbors();
+        for (const auto & neighbor : neighbors)
+          for (const auto & conf: config.domains)
+            if (grid.cell_markers[neighbor] == conf.label and conf.coupled)
+              coupled = true;
+
+        flow_face.aperture = conf.aperture; //m
+        flow_face.conductivity = conf.conductivity; //mD.m
+
+        if (coupled)
         {
-          facet.aperture = config.discrete_fractures[ifrac].aperture; //m
-          facet.conductivity = config.discrete_fractures[ifrac].conductivity; //mD.m
-          found_label = true;
+          mech_face.coupled = true;
+          flow_dfm_faces.insert({face.index(), flow_face});
+          cv_index++;
         }
-      if (!found_label)
-      {
-        std::cout << "No properties for DFM label "
-                  << marker
-                  << " found! Setting sealed fault."
-                  << std::endl;
-        facet.aperture = 1; //m
-        facet.conductivity = 0; //mD.m
-      }
-
-      dfm_faces.insert({face.index(), facet});
-
-      if (coupled)
-        nfluid++;
-    }  //  end DFM fracture face case
+      }  //  end DFM fracture face case
   }
-  n_flow_dfm_faces = static_cast<std::size_t>(nfluid);
 
   std::cout << "Number of Neumann faces = " << n_neumann_faces << std::endl;
   std::cout << "Number of Dirichlet faces = " << n_dirichlet_faces << std::endl;
@@ -1559,226 +1546,226 @@ void SimData::computeTransEfracIntersection()
 
 void SimData::meshFractures()
 {
-  bool should_do_remeshing = false;
-  for (std::size_t f=0; f<vEfrac.size(); ++f)
-    if (config.fractures[f].n1 > 0)
-      should_do_remeshing = true;
-  if (!should_do_remeshing)
-    return;
+//   bool should_do_remeshing = false;
+//   for (std::size_t f=0; f<vEfrac.size(); ++f)
+//     if (config.fractures[f].n1 > 0)
+//       should_do_remeshing = true;
+//   if (!should_do_remeshing)
+//     return;
 
-  std::vector<mesh::SurfaceMesh<double>> new_frac_meshes(vEfrac.size());
-  std::size_t old_shift = n_flow_dfm_faces + grid.n_cells();
-  std::size_t new_shift = n_flow_dfm_faces + grid.n_cells();
+//   std::vector<mesh::SurfaceMesh<double>> new_frac_meshes(vEfrac.size());
+//   std::size_t old_shift = n_flow_dfm_faces + grid.n_cells();
+//   std::size_t new_shift = n_flow_dfm_faces + grid.n_cells();
 
-  for (std::size_t f=0; f<vEfrac.size(); ++f)
-  {
-    auto & efrac = vEfrac[f];
-    const auto & frac_rect = *(config.fractures[f].body);
-    const angem::Basis<3,double> frac_basis = frac_rect.plane.get_basis();
-    Point t1 = frac_basis(0);
-    Point t2 = frac_basis(1);
+//   for (std::size_t f=0; f<vEfrac.size(); ++f)
+//   {
+//     auto & efrac = vEfrac[f];
+//     const auto & frac_rect = *(config.fractures[f].body);
+//     const angem::Basis<3,double> frac_basis = frac_rect.plane.get_basis();
+//     Point t1 = frac_basis(0);
+//     Point t2 = frac_basis(1);
 
-    const auto & points = frac_rect.get_points();
-    const double length = (points[1] - points[0]).norm();
-    const double width = (points[2] - points[1]).norm();
+//     const auto & points = frac_rect.get_points();
+//     const double length = (points[1] - points[0]).norm();
+//     const double width = (points[2] - points[1]).norm();
 
-    t1 *= length;
-    t2 *= width;
+//     t1 *= length;
+//     t2 *= width;
 
-    const std::size_t n1 = config.fractures[f].n1;
-    const std::size_t n2 = config.fractures[f].n2;
+//     const std::size_t n1 = config.fractures[f].n1;
+//     const std::size_t n2 = config.fractures[f].n2;
 
-    if ( n1 > 0 and n2 > 0)  // do remeshing
-    {
-      mesh::SurfaceMesh<double> new_frac_mesh =
-          mesh::make_surface_mesh(t1, t2, points[0], n1, n2);
+//     if ( n1 > 0 and n2 > 0)  // do remeshing
+//     {
+//       mesh::SurfaceMesh<double> new_frac_mesh =
+//           mesh::make_surface_mesh(t1, t2, points[0], n1, n2);
 
-      const double tol = std::min(new_frac_mesh.minimum_edge_size() / 3,
-                                  efrac.mesh.minimum_edge_size() / 3);
+//       const double tol = std::min(new_frac_mesh.minimum_edge_size() / 3,
+//                                   efrac.mesh.minimum_edge_size() / 3);
 
-      for (std::size_t i=0; i<new_frac_mesh.n_polygons(); ++i)
-        for (std::size_t j=0; j<efrac.mesh.n_polygons(); ++j)
-        {
-          const angem::Polygon<double> poly_i(new_frac_mesh.get_vertices(),
-                                              new_frac_mesh.get_polygons()[i]);
-          const angem::Polygon<double> poly_j(efrac.mesh.get_vertices(),
-                                              efrac.mesh.get_polygons()[j]);
-          std::vector<Point> section;
-          if (angem::collision(poly_i, poly_j, section, tol))
-          {
-            if (section.size() == 2) // only touching sides
-              continue;
+//       for (std::size_t i=0; i<new_frac_mesh.n_polygons(); ++i)
+//         for (std::size_t j=0; j<efrac.mesh.n_polygons(); ++j)
+//         {
+//           const angem::Polygon<double> poly_i(new_frac_mesh.get_vertices(),
+//                                               new_frac_mesh.get_polygons()[i]);
+//           const angem::Polygon<double> poly_j(efrac.mesh.get_vertices(),
+//                                               efrac.mesh.get_polygons()[j]);
+//           std::vector<Point> section;
+//           if (angem::collision(poly_i, poly_j, section, tol))
+//           {
+//             if (section.size() == 2) // only touching sides
+//               continue;
 
-            std::cout << "collision " << i << " " << j << std::endl;
-            const angem::Polygon<double> poly_section(section);
+//             std::cout << "collision " << i << " " << j << std::endl;
+//             const angem::Polygon<double> poly_section(section);
 
-            const std::size_t old_element = old_shift + j;
-            const auto neighbors = flow_data.v_neighbors[old_element];
-            for (const auto & neighbor : neighbors)
-            {
-              if (neighbor < n_flow_dfm_faces + grid.n_cells() and neighbor > n_flow_dfm_faces)
-              {
-                flow::FaceData * new_connection;
-                // std::size_t new_conn;
-                if (new_flow_data.connection_exists(new_shift + i, neighbor))
-                  *new_connection = new_flow_data.get_connection(new_shift + i, neighbor);
-                  // new_conn = new_flow_data.connection_index(new_shift + i, neighbor);
-                else
-                  *new_connection = new_flow_data.insert_connection(new_shift + i, neighbor);
+//             const std::size_t old_element = old_shift + j;
+//             const auto neighbors = flow_data.v_neighbors[old_element];
+//             for (const auto & neighbor : neighbors)
+//             {
+//               if (neighbor < n_flow_dfm_faces + grid.n_cells() and neighbor > n_flow_dfm_faces)
+//               {
+//                 flow::FaceData * new_connection;
+//                 // std::size_t new_conn;
+//                 if (new_flow_data.connection_exists(new_shift + i, neighbor))
+//                   *new_connection = new_flow_data.get_connection(new_shift + i, neighbor);
+//                   // new_conn = new_flow_data.connection_index(new_shift + i, neighbor);
+//                 else
+//                   *new_connection = new_flow_data.insert_connection(new_shift + i, neighbor);
 
-                // const std::size_t old_conn = flow_data.connection_index(old_element, neighbor);
-                const auto & old_conn = flow_data.get_connection(old_element, neighbor);
-                const double factor = poly_section.area() / poly_j.area();
-                // const double T_ij = flow_data.trans_ij[old_conn];
-                const double T_ij = old_conn.transmissibility;
-                (*new_connection).transmissibility = T_ij * factor;
-                // if (new_conn >= new_flow_data.trans_ij.size())
-                //   (*new_connection).transmissibility = T_ij * factor;
-                //   // new_flow_data.trans_ij.push_back(T_ij * factor);
-                // else
-                  // (*new_connection).transmissibility = T_ij * factor;
-                  // new_flow_data.trans_ij[new_conn] += T_ij * factor;
-              }
-            }
-          }
-          else
-          {
-            // std::cout << "no collision " << i << " " << j << std::endl;
-          }
-        }  // end frac element loop
+//                 // const std::size_t old_conn = flow_data.connection_index(old_element, neighbor);
+//                 const auto & old_conn = flow_data.get_connection(old_element, neighbor);
+//                 const double factor = poly_section.area() / poly_j.area();
+//                 // const double T_ij = flow_data.trans_ij[old_conn];
+//                 const double T_ij = old_conn.transmissibility;
+//                 (*new_connection).transmissibility = T_ij * factor;
+//                 // if (new_conn >= new_flow_data.trans_ij.size())
+//                 //   (*new_connection).transmissibility = T_ij * factor;
+//                 //   // new_flow_data.trans_ij.push_back(T_ij * factor);
+//                 // else
+//                   // (*new_connection).transmissibility = T_ij * factor;
+//                   // new_flow_data.trans_ij[new_conn] += T_ij * factor;
+//               }
+//             }
+//           }
+//           else
+//           {
+//             // std::cout << "no collision " << i << " " << j << std::endl;
+//           }
+//         }  // end frac element loop
 
-      flow::FlowData frac_flow_data;
-      computeFracFracTran(f, efrac, new_frac_mesh, frac_flow_data);
+//       flow::FlowData frac_flow_data;
+//       computeFracFracTran(f, efrac, new_frac_mesh, frac_flow_data);
 
-      for (std::size_t i=0; i<new_frac_mesh.n_polygons(); ++i)
-      {
-        // new_flow_data.volumes.push_back(frac_flow_data.volumes[i]);
-        // new_flow_data.poro.push_back(frac_flow_data.poro[i]);
-        // new_flow_data.depth.push_back(frac_flow_data.depth[i]);
-        auto & new_cell = new_flow_data.cells.emplace_back();
-        new_cell.volume = frac_flow_data.cells[i].volume;
-        new_cell.porosity = frac_flow_data.cells[i].porosity;
-        new_cell.depth = frac_flow_data.cells[i].depth;
-      }
+//       for (std::size_t i=0; i<new_frac_mesh.n_polygons(); ++i)
+//       {
+//         // new_flow_data.volumes.push_back(frac_flow_data.volumes[i]);
+//         // new_flow_data.poro.push_back(frac_flow_data.poro[i]);
+//         // new_flow_data.depth.push_back(frac_flow_data.depth[i]);
+//         auto & new_cell = new_flow_data.cells.emplace_back();
+//         new_cell.volume = frac_flow_data.cells[i].volume;
+//         new_cell.porosity = frac_flow_data.cells[i].porosity;
+//         new_cell.depth = frac_flow_data.cells[i].depth;
+//       }
 
-      for (const auto & conn : frac_flow_data.map_connection)
-      {
-        // const std::size_t iconn = conn.second;
-        const auto element_pair = frac_flow_data.invert_hash(conn.first);
-        auto old_connection = conn.second;
-        const std::size_t i = new_shift + element_pair.first;
-        const std::size_t j = new_shift + element_pair.second;
-        auto new_connection = new_flow_data.insert_connection(i, j);
-        // new_flow_data.trans_ij.push_back(frac_flow_data.trans_ij[iconn]);
-        new_connection.transmissibility = old_connection.transmissibility;
-      }
+//       for (const auto & conn : frac_flow_data.map_connection)
+//       {
+//         // const std::size_t iconn = conn.second;
+//         const auto element_pair = frac_flow_data.invert_hash(conn.first);
+//         auto old_connection = conn.second;
+//         const std::size_t i = new_shift + element_pair.first;
+//         const std::size_t j = new_shift + element_pair.second;
+//         auto new_connection = new_flow_data.insert_connection(i, j);
+//         // new_flow_data.trans_ij.push_back(frac_flow_data.trans_ij[iconn]);
+//         new_connection.transmissibility = old_connection.transmissibility;
+//       }
 
-      // save custom cell data
-      const std::size_t n_vars = rockPropNames.size();
-      std::size_t n_flow_vars = 0;
-      for (std::size_t j=0; j<n_vars; ++j)
-        if (config.expression_type[j] == 0)
-          n_flow_vars++;
+//       // save custom cell data
+//       const std::size_t n_vars = rockPropNames.size();
+//       std::size_t n_flow_vars = 0;
+//       for (std::size_t j=0; j<n_vars; ++j)
+//         if (config.expression_type[j] == 0)
+//           n_flow_vars++;
 
-      for (std::size_t i=0; i<new_frac_mesh.n_polygons(); ++i)
-      {
-        std::vector<double> new_custom_data(n_flow_vars);
-        const std::size_t ielement = new_shift + i;
-        const auto & neighbors = new_flow_data.v_neighbors[ielement];
-        std::vector<std::size_t> rock_cell_neighbors;
-        for (const auto & neighbor : neighbors)
-          if (neighbor < grid.n_cells())
-            rock_cell_neighbors.push_back(neighbor);
+//       for (std::size_t i=0; i<new_frac_mesh.n_polygons(); ++i)
+//       {
+//         std::vector<double> new_custom_data(n_flow_vars);
+//         const std::size_t ielement = new_shift + i;
+//         const auto & neighbors = new_flow_data.v_neighbors[ielement];
+//         std::vector<std::size_t> rock_cell_neighbors;
+//         for (const auto & neighbor : neighbors)
+//           if (neighbor < grid.n_cells())
+//             rock_cell_neighbors.push_back(neighbor);
 
-        for (const auto & neighbor : rock_cell_neighbors)
-        {
-          std::size_t counter = 0;
-          for (std::size_t j=0; j<n_vars; ++j)
-            if (config.expression_type[j] == 0)
-            {
-              new_custom_data[counter] += vsCellRockProps[neighbor][j];
-              counter++;
-            }
-        }
-        // divide by number of neighbors
-        for (double & value : new_custom_data)
-          value /= static_cast<double>(rock_cell_neighbors.size());
+//         for (const auto & neighbor : rock_cell_neighbors)
+//         {
+//           std::size_t counter = 0;
+//           for (std::size_t j=0; j<n_vars; ++j)
+//             if (config.expression_type[j] == 0)
+//             {
+//               new_custom_data[counter] += vsCellRockProps[neighbor][j];
+//               counter++;
+//             }
+//         }
+//         // divide by number of neighbors
+//         for (double & value : new_custom_data)
+//           value /= static_cast<double>(rock_cell_neighbors.size());
 
-        // new_flow_data.custom_data.push_back(new_custom_data);
-        new_flow_data.cells.back().custom= new_custom_data;
-      }
+//         // new_flow_data.custom_data.push_back(new_custom_data);
+//         new_flow_data.cells.back().custom= new_custom_data;
+//       }
 
-      new_frac_meshes[f] = std::move(new_frac_mesh);
-    }
-    else  // copy old efrac data
-    {
-      std::pair<std::size_t,std::size_t> range =
-          {old_shift, old_shift + vEfrac[f].mesh.n_polygons()};
+//       new_frac_meshes[f] = std::move(new_frac_mesh);
+//     }
+//     else  // copy old efrac data
+//     {
+//       std::pair<std::size_t,std::size_t> range =
+//           {old_shift, old_shift + vEfrac[f].mesh.n_polygons()};
 
-      for (const auto & conn : flow_data.map_connection)
-      {
-        const auto elements = flow_data.invert_hash(conn.first);
-        if (elements.second >= range.first and elements.second < range.second)
-        {
-          // const double Tij = flow_data.trans_ij[conn.second];
-          const double Tij = conn.second.transmissibility;
-          std::size_t ielement = elements.first;
-          std::size_t jelement = elements.second;
-          if (ielement >= grid.n_cells())
-            ielement = ielement - old_shift + new_shift;
-          if (jelement >= grid.n_cells())
-            jelement = jelement - old_shift + new_shift;
-          auto & new_connetion = new_flow_data.insert_connection(ielement, jelement);
-          // new_flow_data.trans_ij.push_back(Tij);
-          new_connetion.transmissibility = Tij;
-        }
-      }
+//       for (const auto & conn : flow_data.map_connection)
+//       {
+//         const auto elements = flow_data.invert_hash(conn.first);
+//         if (elements.second >= range.first and elements.second < range.second)
+//         {
+//           // const double Tij = flow_data.trans_ij[conn.second];
+//           const double Tij = conn.second.transmissibility;
+//           std::size_t ielement = elements.first;
+//           std::size_t jelement = elements.second;
+//           if (ielement >= grid.n_cells())
+//             ielement = ielement - old_shift + new_shift;
+//           if (jelement >= grid.n_cells())
+//             jelement = jelement - old_shift + new_shift;
+//           auto & new_connetion = new_flow_data.insert_connection(ielement, jelement);
+//           // new_flow_data.trans_ij.push_back(Tij);
+//           new_connetion.transmissibility = Tij;
+//         }
+//       }
 
-      for (std::size_t i=0; i<efrac.mesh.n_polygons(); ++i)
-      {
-        auto & new_cell = new_flow_data.cells.emplace_back();
-        new_cell.volume = flow_data.cells[old_shift + i].volume;
-        new_cell.porosity = flow_data.cells[old_shift + i].porosity;
-        new_cell.depth = flow_data.cells[old_shift + i].depth;
-        new_cell.custom = flow_data.cells[old_shift + i].custom;
-      }
-    }
+//       for (std::size_t i=0; i<efrac.mesh.n_polygons(); ++i)
+//       {
+//         auto & new_cell = new_flow_data.cells.emplace_back();
+//         new_cell.volume = flow_data.cells[old_shift + i].volume;
+//         new_cell.porosity = flow_data.cells[old_shift + i].porosity;
+//         new_cell.depth = flow_data.cells[old_shift + i].depth;
+//         new_cell.custom = flow_data.cells[old_shift + i].custom;
+//       }
+//     }
 
-    old_shift += vEfrac[f].mesh.n_polygons();
-    if (new_frac_meshes[f].empty())
-      new_shift = old_shift;
-    else
-      new_shift += new_frac_meshes[f].n_polygons();
-  }  // end efrac loop
+//     old_shift += vEfrac[f].mesh.n_polygons();
+//     if (new_frac_meshes[f].empty())
+//       new_shift = old_shift;
+//     else
+//       new_shift += new_frac_meshes[f].n_polygons();
+//   }  // end efrac loop
 
-//   // const std::string vtk_file2 = "./ababa.vtk";
-//   // IO::VTKWriter::write_vtk(new_frac_mesh.vertices.points,
-//   //                          new_frac_mesh.polygons,
-//   //                          vtk_file2);
+// //   // const std::string vtk_file2 = "./ababa.vtk";
+// //   // IO::VTKWriter::write_vtk(new_frac_mesh.vertices.points,
+// //   //                          new_frac_mesh.polygons,
+// //   //                          vtk_file2);
 
-  std::cout << "saving frac meshes" << std::endl;
+//   std::cout << "saving frac meshes" << std::endl;
 
-  bool any_new = false;
-  for (std::size_t f=0; f<vEfrac.size(); ++f)
-  {
-    if (!new_frac_meshes[f].empty())
-    {
-      vEfrac[f].mesh = std::move(new_frac_meshes[f]);
-      any_new = true;
-    }
-  }
+//   bool any_new = false;
+//   for (std::size_t f=0; f<vEfrac.size(); ++f)
+//   {
+//     if (!new_frac_meshes[f].empty())
+//     {
+//       vEfrac[f].mesh = std::move(new_frac_meshes[f]);
+//       any_new = true;
+//     }
+//   }
 
-  if (any_new)
-    flow_data = std::move(new_flow_data);
+//   if (any_new)
+//     flow_data = std::move(new_flow_data);
 
-  std::cout << "need to restore. aborting" << std::endl;
-  abort();
+//   std::cout << "need to restore. aborting" << std::endl;
+//   abort();
 }
 
 
 bool SimData::is_embedded_fracture(const std::size_t flow_element_index) const
 {
-  if (flow_element_index > grid.n_cells() + n_flow_dfm_faces)
+  if (flow_element_index > grid.n_cells() + flow_dfm_faces.size())
     return true;
   return false;
 }
@@ -1786,7 +1773,7 @@ bool SimData::is_embedded_fracture(const std::size_t flow_element_index) const
 
 bool SimData::is_discrete_fracture(const std::size_t flow_element_index) const
 {
-  if (flow_element_index < n_flow_dfm_faces)
+  if (flow_element_index < flow_dfm_faces.size())
     return true;
   return false;
 }
@@ -1798,7 +1785,6 @@ bool SimData::is_reservoir_element(const std::size_t flow_element_index) const
     return true;
   return false;
 }
-
 
 
 void SimData::setupWells()
@@ -1838,7 +1824,7 @@ void SimData::setupSimpleWell(Well & well)
       std::vector<Point> section_data;
       if (angem::collision(p1, p2, *p_poly_cell, section_data, 1e-6))
       {
-        well.connected_volumes.push_back(n_flow_dfm_faces + cell.index());
+        well.connected_volumes.push_back(flow_dfm_faces.size() + cell.index());
         well.segment_length.push_back(section_data[0].distance(section_data[1]));
         well.directions.push_back(direction);
         break;
@@ -1989,13 +1975,13 @@ void SimData::build_multiscale_data()
     }
   }
   else return;
-  // exit(0);
 }
 
 
 // compute flow discretization
 void SimData::computeFlowDiscretization()
 {
+  std::unique_ptr<discretization::DiscretizationBase> p_discr;
   switch (config.discretization)
   {
     case Discretization::TPFA :
@@ -2004,7 +1990,38 @@ void SimData::computeFlowDiscretization()
                  vsCellRockProps, rockPropNames);
       break;
   }
+
   p_discr->build();
+
+  // build DFM discretization
+  p_discr = make_unique<discretization::DiscretizationDFM>
+                (grid, fracture_face_markers, flow_dfm_faces,
+                 vsCellRockProps, rockPropNames,
+                 /* shift_marix = */flow_dfm_faces.size(),
+                 /* shift_dfm =  */ 0);
+  p_discr->build();
+
+  // flow_cell_data = p_discr->get_cell_data();
+  // flow_face_data = p_discr->get_face_data();
+
+  // std::cout << "copied shit" << std::endl;
+
+  // ofstream out;
+  // string fname = "shit.txt";
+  // out.open((fname).c_str());
+  // out << "TPFACONNS" << std::endl;
+  // out << flow_face_data.size() << std::endl;
+  // for (const auto & face : flow_face_data)
+  // {
+  //   out << face.elements[0] << "\t";
+  //   out << face.elements[1] << "\t";
+  //   out << -face.coefficients[0] * config.transmissibility_units;
+  //   out << std::endl;
+  // }
+
+  // out << "/" << std::endl;
+  // out.close();
+
   exit(0);
 }
 

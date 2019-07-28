@@ -53,6 +53,7 @@ void DiscretizationBase::infer_perm_assignment()
   bool found_perm_x = false;
   bool found_perm_y = false;
   bool found_perm_z = false;
+
   for (std::size_t i = 0; i < keys.size(); i++)
   {
     const auto & key = keys[i];
@@ -94,12 +95,12 @@ void DiscretizationBase::infer_perm_assignment()
 
 void DiscretizationBase::infer_custom_keys()
 {
-    for (size_t j = 0; j < keys.size(); j++)
-    {
-      if (std::find(perm_keys.begin(), perm_keys.end(), j) != perm_keys.end() and
-          j != poro_key)
-        custom_keys.push_back(j);
-    }
+  for (size_t j = 0; j < keys.size(); j++)
+  {
+    if (std::find(perm_keys.begin(), perm_keys.end(), j) != perm_keys.end() and
+        j != poro_key)
+      custom_keys.push_back(j);
+  }
 }
 
 
@@ -122,18 +123,34 @@ void DiscretizationBase::infer_poro_assignment()
 
 void DiscretizationBase::build_cell_data()
 {
-  cell_data.resize(grid.n_cells());
+  cv_data.resize(grid.n_cells());
   for (auto cell = grid.begin_cells(); cell != grid.end_cells(); ++cell)
   {
     const std::size_t i = cell.index();
-    auto & data = cell_data[i];
+    auto & data = cv_data[i];
+    data.type = ControlVolumeType::cell;
+    data.master = i;
     data.porosity = get_porosity(i);
+    data.permeability = get_permeability(i);
+    data.center = cell.center();
     data.volume = cell.volume() * data.porosity;
-    data.depth = -cell.center()[2];
+
     data.custom.resize(custom_keys.size());
     for (size_t j = 0; j < custom_keys.size(); ++j)
       data.custom[j] = props[i][custom_keys[j]];
   }
+}
+
+
+std::vector<ControlVolumeData> & DiscretizationBase::get_cell_data()
+{
+  return cv_data;
+}
+
+
+std::vector<ConnectionData> & DiscretizationBase::get_face_data()
+{
+  return con_data;
 }
 
 }

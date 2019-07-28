@@ -26,20 +26,12 @@
 #include <time.h>
 
 
-// struct FlowData
-// {
-//   std::vector<double> volumes, poro, depth;
-//   // regular transmissibilities
-//   std::vector<std::size_t> ielement, jelement;
-//   std::vector<double>      trans_ij, conduct_ij;
-//   // connections
-//   std::vector<int> connection_type;
-//   std::vector<int> connection_n;
-
-//   // user-defined cell data
-//   std::vector<std::vector<double>> custom_data;
-//   std::vector<std::string>         custom_names;
-// };
+enum ConnectionType : int
+{
+  matrix_matrix = 1,
+  matrix_fracture = 2,
+  fracture_fracture = 3
+};
 
 namespace flow
 {
@@ -122,22 +114,29 @@ protected:
   std::vector<int>		EQV;
 
   ///// Additional polygon information /////
-  std::vector<double>		FArea;
-  std::vector<double>		FXG,FYG,FZG;
-  std::vector<double>		Fnx,Fny,Fnz;		// unit vector
+  std::vector<double> face_area;
+  // center of mass
+  std::vector<double> polygon_center_x, polygon_center_y, polygon_center_z;
+  std::vector<double> face_normal_x, face_normal_y, face_normal_z;		// normal unit vector
 
   ///// Additional polyhedron information /////
-  std::vector<double>		VVolume;
-  std::vector<double>		VXG,VYG,VZG;
+  // geometric cell volume
+  std::vector<double> polyhedron_volume;
+  // center of mass
+  std::vector<double> polyhedron_center_x,
+                      polyhedron_center_y,
+                      polyhedron_center_z;
 
   ///// Definition of the control volumes /////
-  double		Tolerance;
+  double Tolerance;
 
+  // control volumes data
   std::vector<int>		CVType;
   std::vector<int>		CVZone;
-  std::vector<double>	CVx, CVy, CVz;
-  std::vector<double>		CVVolume;
+  std::vector<double>	CV_center_x, CV_center_y, CV_center_z;
+  std::vector<double>		CVVolume;  // volume of control volume (including volume facetor)
 
+  // zone data
   std::vector<int>		ZoneCode;
   std::vector<double>	ZVolumeFactor;
   std::vector<double>	ZPorosity;
@@ -149,8 +148,9 @@ protected:
 
 ///// Definition of the connections /////
 
-  std::vector<int>		ConType;
-  std::vector<int>		ConN;
+  std::vector<int>		connection_type;
+  std::vector<int>		n_connection_elements;
+  // connection control volumes
   std::vector<std::vector<int>>		ConCV;
   std::vector<std::vector<double>>		ConTr;
 
@@ -159,11 +159,15 @@ protected:
 
   std::vector<std::vector<double>>	ConArea;
   std::vector<std::vector<double>>	ConPerm;
+  /// same as con_normal, idk why Mo needs this
   std::vector<double>		ConP1x, ConP1y, ConP1z;
   std::vector<double>		ConP2x, ConP2y, ConP2z;
-  std::vector<double>		ConIx, ConIy, ConIz;
-  std::vector<double>		ConVx, ConVy, ConVz;
-  std::vector<double>		Conhx, Conhy, Conhz;
+  // centers of connections
+  std::vector<double>		con_center_x, con_center_y, con_center_z;
+  // connection normals
+  std::vector<double>		con_normal_x, con_normal_y, con_normal_z;
+  // projection of connection center onto line connecting two control volumes
+  std::vector<double>		con_center_proj_x, con_center_proj_y, con_center_proj_z;
 
 ///// Transmissibility List /////
 

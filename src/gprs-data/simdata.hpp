@@ -188,7 +188,8 @@ protected:
   // return global flow index of an ielement element of embedded fracture i
   std::size_t efrac_flow_index(const std::size_t ifrac,
                                const std::size_t ielement) const;
-  std::size_t res_cell_flow_index(const std::size_t icell) const {return n_flow_dfm_faces + icell;}
+  std::size_t res_cell_flow_index(const std::size_t icell) const
+  {return flow_dfm_faces.size() + icell;}
 
   // connect embedded fractures to cells in a physical way
   void apply_projection_edfm(const std::size_t                ifrac,     // embedded frac index ndex of embedded fracture
@@ -227,11 +228,12 @@ public:
   std::vector<std::pair<std::size_t,std::size_t>> well_vertex_indices;
 
   // stores faces with mechanics neumann and dirichlet boundary conditions
-  std::unordered_map<std::size_t, PhysicalFace> boundary_faces;
+  std::unordered_map<std::size_t, BoundaryFace> boundary_faces;
   // stores faces that represent dfm fractures
-  std::unordered_map<std::size_t, PhysicalFace> dfm_faces;
-  // number of flow dfm faces (before split)
-  std::size_t n_flow_dfm_faces;
+  std::unordered_map<std::size_t, FractureFace> flow_dfm_faces;
+  // stores face indices that need to be split
+  // all flow dfm faces are included into this set
+  std::unordered_map<std::size_t, MechanicalFractureFace> mech_dfm_faces;
 
   // number of faces with dirichlet mechanics conditions
   std::size_t n_dirichlet_faces;
@@ -248,12 +250,15 @@ public:
   // set of markers for boundary faces (used in is_boundary)
   std::unordered_set<int> boundary_face_markers;
 
+  // flow discretization
+  std::vector<discretization::ControlVolumeData> flow_cell_data;
+  std::vector<discretization::ConnectionData> flow_face_data;
   // multiscale
   multiscale::MultiScaleOutputData ms_data;
   // std::vector<std::size_t> partitioning;
 
   // different from partitioning cause of fracturess and wells
-  
+
   //  std::vector<std::size_t> fluid_partitioning;
 
 protected:
@@ -261,7 +266,6 @@ protected:
   StandardElements * pStdElement;
   // class that performs vertex renumbering  after dfm split for faster computation
   // renum * pRenum;
-  std::unique_ptr<discretization::DiscretizationBase> p_discr;
 };
 
 }

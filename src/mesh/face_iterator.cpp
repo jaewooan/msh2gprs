@@ -103,4 +103,25 @@ angem::Point<3,double> face_iterator::center() const
   return c;
 }
 
+
+std::vector<vertex_pair> face_iterator::edges() const
+{
+  const auto & verts = face_it->second.ordered_indices;
+  std::vector<vertex_pair> pairs(verts.size());
+  for (std::size_t i=0; i<verts.size(); ++i)
+  {
+    std::size_t i1, i2;
+    if (i < verts.size() - 1)
+    {
+      i1 = i; i2 = i+1;
+    }
+    else
+    {
+      i1 = i; i2 = 0;
+    }
+    pairs[i] = std::make_pair(i1, i2);
+  }
+  return pairs;
 }
+
+}  // end namespace

@@ -37,7 +37,7 @@ void OutputDataGPRS::write_output(const std::string & output_path)
             << std::endl;
   saveBoundaryConditions(output_path + data.config.bcond_file);
 
-  if (data.dfm_faces.size() > 0)
+  if (data.mech_dfm_faces.size() > 0)
   {
     std::cout << "save discrete fractures" << std::endl;
     saveDiscreteFractureProperties(output_path + data.config.discrete_frac_file);
@@ -205,17 +205,19 @@ void OutputDataGPRS::saveGeometry(const std::string & output_path)
     {
       if (face.index() == face.master_index())
       {
-        const auto it_frac_face = data.dfm_faces.find(face.master_index());
-        if (it_frac_face == data.dfm_faces.end())
+        const auto it_frac_face = data.mech_dfm_faces.find(face.master_index());
+        if (it_frac_face == data.mech_dfm_faces.end())
         {
           std::cout << "bug in dfm connections" << std::endl;
           exit(0);
         }
         const auto & neighbors = it_frac_face->second.neighbor_cells;
 
-        geomechfile << neighbors.size() << "\t";
-        for (const auto & neighbor : neighbors)
-          geomechfile << neighbor + 1 << "\t";
+        geomechfile << 2 << "\t";
+        geomechfile << neighbors.first + 1 << "\t";
+        geomechfile << neighbors.second + 1 << "\t";
+        // for (const auto & neighbor : neighbors)
+        //   geomechfile << neighbor + 1 << "\t";
         geomechfile << std::endl;
       }
     }
@@ -444,7 +446,7 @@ void OutputDataGPRS::saveBoundaryConditions(const std::string file_name)
     for (const auto & facet_it : data.boundary_faces)
       if (facet_it.second.ntype == 2)  // neumann
       {
-        geomechfile << facet_it.second.nface + 1 << "\t";
+        geomechfile << facet_it.second.face_index + 1 << "\t";
         geomechfile << facet_it.second.condition << std::endl;
       }
 
@@ -461,16 +463,18 @@ void OutputDataGPRS::saveDiscreteFractureProperties(const std::string file_name)
 
   std::ofstream geomechfile;
   geomechfile.open(file_name.c_str());
-  set<int>::iterator itsetint;
 
   cout << "write all fractured faces\n";
   geomechfile << "GMFACE_FRACTURE_TO_FLOWCELL" << std::endl;
-  for (const auto & face_it : data.dfm_faces)
+  for (const auto & face_it : data.mech_dfm_faces)
   {
     // geomechfile << face_it.second.ifracture + 1 << "\t";
-    geomechfile << face_it.second.nface + 1 << "\t";
+    geomechfile << face_it.first + 1 << "\t";
     if (face_it.second.coupled)
-      geomechfile << face_it.second.nfluid + 1 << std::endl;
+    {
+      const auto & flow_face = data.flow_dfm_faces[face_it.first];
+      geomechfile << flow_face.cv_index + 1 << std::endl;
+    }
     else
       geomechfile << -1 << std::endl;
   }
@@ -506,17 +510,18 @@ void OutputDataGPRS::saveDiscreteFractureProperties(const std::string file_name)
   // geomechfile << "/" << std::endl << std::endl;
 
   geomechfile << "GMFACE_FRACTURE_CONDUCTIVITY" << std::endl;
-  for (const auto facet_it : data.dfm_faces)
+  for (const auto facet_it : data.flow_dfm_faces)
     geomechfile << facet_it.second.conductivity << std::endl;
   geomechfile << "/" << std::endl << std::endl;
 
   geomechfile << "GMFACE_FRACTURE_REGION" << std::endl;
-  for (const auto facet_it : data.dfm_faces)
+  const size_t n_flow_dfm = data.flow_dfm_faces.size();
+  for (std::size_t i=0; i<n_flow_dfm; ++i)
     geomechfile << 1 << std::endl;
   geomechfile << "/" << std::endl << std::endl;
 
   geomechfile << "GMFACE_FRACTURE_GROUP" << std::endl;
-  for (const auto facet_it : data.dfm_faces)
+  for (std::size_t i=0; i<n_flow_dfm; ++i)
     geomechfile << 1 << std::endl;
   geomechfile << "/" << std::endl << std::endl;
 

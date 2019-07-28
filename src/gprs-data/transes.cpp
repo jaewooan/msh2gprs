@@ -57,18 +57,21 @@ CalcTranses::~CalcTranses()
   // free (VFaces);
 }
 /********************************************************************/
-void CalcTranses::ProjectionA( double mx,double my,double mz,
-                               double px,double py,double pz,
-                               double ix,double iy,double iz,
-                               double nx,double ny,double nz,
-                               double *hx,double *hy,double *hz)
+void CalcTranses::
+ProjectionA( double CVx,double CVy,double CVz,  // CV center
+             double px,double py,double pz,     // CV1 - CV2
+             double face_center_x,double face_center_y,double face_center_z, // face center
+             double nx,double ny,double nz,    // face normal
+             double *hx,double *hy,double *hz)
 {
-  double  t;
-
-  t = ((ix-mx)*nx + (iy-my)*ny + (iz-mz)*nz) / (px*nx + py*ny + pz*nz);
-  *hx = mx + t*px;
-  *hy = my + t*py;
-  *hz = mz + t*pz;
+  // (face_center - cell_center) · face_normal /
+  // (cell1_center - cell2_center) · face_normal
+  const double t = ((face_center_x-CVx)*nx +
+                    (face_center_y-CVy)*ny +
+                    (face_center_z-CVz)*nz) / (px*nx + py*ny + pz*nz);
+  *hx = CVx + t*px;
+  *hy = CVy + t*py;
+  *hz = CVz + t*pz;
 }
 /********************************************************************/
 void CalcTranses::ProjectionB( double mx,  double my,  double mz,
@@ -88,129 +91,126 @@ void CalcTranses::ProjectionB( double mx,  double my,  double mz,
 void CalcTranses::ComputeBasicGeometry()
 {
     // int i, j, k;
-    int k;
+    // int k;
     double  xi, yi, zi, areatmp, volumetmp;
     double  ux, uy, uz,
         vx, vy, vz,
         nx,ny,nz,
-        nl,h;
+        nl;
 
 //////////////////////////////////////////////////////////////////
 ///// Polygon Area, Center of Mass, and Normal (Unit vector) /////
 //////////////////////////////////////////////////////////////////
 
-    FArea.resize(NbPolygons);
-    FXG.resize(NbPolygons);
-    FYG.resize(NbPolygons);
-    FZG.resize(NbPolygons);
-    Fnx.resize(NbPolygons);
-    Fny.resize(NbPolygons);
-    Fnz.resize(NbPolygons);
+    face_area.resize(NbPolygons);
+    polygon_center_x.resize(NbPolygons);
+    polygon_center_y.resize(NbPolygons);
+    polygon_center_z.resize(NbPolygons);
+    face_normal_x.resize(NbPolygons);
+    face_normal_y.resize(NbPolygons);
+    face_normal_z.resize(NbPolygons);
 
     for (std::size_t i=0; i<NbPolygons; i++)
     {
-      FArea[i] = FXG[i] = FYG[i] = FZG[i] = Fnx[i] = Fny[i] = Fnz[i] = 0;
+      face_area[i] = polygon_center_x[i] = polygon_center_y[i] = polygon_center_z[i] = 0;
+      face_normal_x[i] = face_normal_y[i] = face_normal_z[i] = 0;
       for (std::size_t j=1; j<vvFNodes[i].size()-1; j++)
       {
+        /* compute face normal and offset w from first 3 vertices */
         ux = X[FNodes[i][j]] - X[FNodes[i][0]];
         uy = Y[FNodes[i][j]] - Y[FNodes[i][0]];
         uz = Z[FNodes[i][j]] - Z[FNodes[i][0]];
         vx = X[FNodes[i][j+1]] - X[FNodes[i][0]];
         vy = Y[FNodes[i][j+1]] - Y[FNodes[i][0]];
         vz = Z[FNodes[i][j+1]] - Z[FNodes[i][0]];
+        // not normalized normal vector components
         nx = (uy*vz - vy*uz);
         ny = (vx*uz - ux*vz);
         nz = (ux*vy - uy*vx);
         areatmp = .5*sqrt(nx*nx + ny*ny + nz*nz);
 
-        FArea[i] += areatmp;
-        FXG[i] += areatmp*(X[FNodes[i][0]] + X[FNodes[i][j]] + X[FNodes[i][j+1]])/3.;
-        FYG[i] += areatmp*(Y[FNodes[i][0]] + Y[FNodes[i][j]] + Y[FNodes[i][j+1]])/3.;
-        FZG[i] += areatmp*(Z[FNodes[i][0]] + Z[FNodes[i][j]] + Z[FNodes[i][j+1]])/3.;
+        face_area[i] += areatmp;
+        polygon_center_x[i] += areatmp*(X[FNodes[i][0]] + X[FNodes[i][j]] + X[FNodes[i][j+1]])/3.;
+        polygon_center_y[i] += areatmp*(Y[FNodes[i][0]] + Y[FNodes[i][j]] + Y[FNodes[i][j+1]])/3.;
+        polygon_center_z[i] += areatmp*(Z[FNodes[i][0]] + Z[FNodes[i][j]] + Z[FNodes[i][j+1]])/3.;
 
-        Fnx[i] +=.5*nx;
-        Fny[i] +=.5*ny;
-        Fnz[i] +=.5*nz;
+        face_normal_x[i] +=.5*nx;
+        face_normal_y[i] +=.5*ny;
+        face_normal_z[i] +=.5*nz;
       }
 
-      FXG[i] = FXG[i] / FArea[i];
-      FYG[i] = FYG[i] / FArea[i];
-      FZG[i] = FZG[i] / FArea[i];
+      polygon_center_x[i] = polygon_center_x[i] / face_area[i];
+      polygon_center_y[i] = polygon_center_y[i] / face_area[i];
+      polygon_center_z[i] = polygon_center_z[i] / face_area[i];
 
-      Fnx[i] = Fnx[i] / FArea[i];
-      Fny[i] = Fny[i] / FArea[i];
-      Fnz[i] = Fnz[i] / FArea[i];
+      face_normal_x[i] = face_normal_x[i] / face_area[i];
+      face_normal_y[i] = face_normal_y[i] / face_area[i];
+      face_normal_z[i] = face_normal_z[i] / face_area[i];
 
-      nl = sqrt(Fnx[i]*Fnx[i] + Fny[i]*Fny[i] + Fnz[i]*Fnz[i]);
+      nl = sqrt(face_normal_x[i]*face_normal_x[i] + face_normal_y[i]*face_normal_y[i] + face_normal_z[i]*face_normal_z[i]);
 
-      Fnx[i] = Fnx[i] / nl;
-      Fny[i] = Fny[i] / nl;
-      Fnz[i] = Fnz[i] / nl;
+      face_normal_x[i] = face_normal_x[i] / nl;
+      face_normal_y[i] = face_normal_y[i] / nl;
+      face_normal_z[i] = face_normal_z[i] / nl;
     }
 
 ////////////////////////////////////////////////
 ///// Polyhedron Volume and Center of Mass /////
 ////////////////////////////////////////////////
 
-    VVolume.resize(NbPolyhedra);
-    VXG.resize(NbPolyhedra);
-    VYG.resize(NbPolyhedra);
-    VZG.resize(NbPolyhedra);
+    polyhedron_volume.resize(NbPolyhedra);
+    polyhedron_center_x.resize(NbPolyhedra);
+    polyhedron_center_y.resize(NbPolyhedra);
+    polyhedron_center_z.resize(NbPolyhedra);
 
     for (std::size_t i=0; i<NbPolyhedra; i++)
     {
-        VVolume[i] = VXG[i] = VYG[i] = VZG[i] = 0;
+        polyhedron_volume[i] = polyhedron_center_x[i] = polyhedron_center_y[i] = polyhedron_center_z[i] = 0;
         xi = yi = zi = 0;
 
-        for (std::size_t j=0; j<vvVFaces[i].size(); j++) // Defining a node inside the polyhedron
+        // Defining a node inside the polyhedron
+        // it's the centroid of faces
+        for (std::size_t j=0; j<vvVFaces[i].size(); j++)
         {
-            xi += FXG[vvVFaces[i][j]];
-            yi += FYG[vvVFaces[i][j]];
-            zi += FZG[vvVFaces[i][j]];
+          xi += polygon_center_x[vvVFaces[i][j]];
+          yi += polygon_center_y[vvVFaces[i][j]];
+          zi += polygon_center_z[vvVFaces[i][j]];
         }
 
-        const double n_element_nodes = vvVFaces[i].size();
-        xi = xi / n_element_nodes;
-        yi = yi / n_element_nodes;
-        zi = zi / n_element_nodes;
+        const double n_element_faces = vvVFaces[i].size();
+        xi = xi / n_element_faces;
+        yi = yi / n_element_faces;
+        zi = zi / n_element_faces;
 
         for (std::size_t j=0; j<vvVFaces[i].size(); j++)
         {
-          k = vvVFaces[i][j];
-          h = Fnx[k] * (FXG[k]-xi) +
-              Fny[k] * (FYG[k]-yi) +
-              Fnz[k] * (FZG[k]-zi);
+          const std::size_t face = vvVFaces[i][j];
+          const double h = face_normal_x[face] * (polygon_center_x[face]-xi) +
+                           face_normal_y[face] * (polygon_center_y[face]-yi) +
+                           face_normal_z[face] * (polygon_center_z[face]-zi);
 
-          volumetmp = fabs(h*FArea[k]) / 3.;
+          volumetmp = fabs(h*face_area[face]) / 3.;
 
           if (std::isnan(volumetmp))
           {
             std::cout << "found nan volume" << std::endl;
             std::cout << "Polyhedron = " << i << std::endl;
-            std::cout << "k = " << k << std::endl;
-            std::cout << "h = " << h << std::endl;
-            std::cout << "xi = " << xi << std::endl;
-            std::cout << "yi = " << yi << std::endl;
-            std::cout << "zi = " << zi << std::endl;
-            std::cout << "n_element_nodes = " << n_element_nodes << std::endl;
-            for (std::size_t j=0; j<vvVFaces[i].size(); j++) // Defining a node inside the polyhedron
-            {
-              std::cout << "FXG[vvVFaces[i][j]]; = " << FXG[vvVFaces[i][j]] << std::endl;
-              std::cout << "FYG[vvVFaces[i][j]]; = " << FYG[vvVFaces[i][j]] << std::endl;
-              std::cout << "FzG[vvVFaces[i][j]]; = " << FZG[vvVFaces[i][j]] << std::endl;
-            }
+            std::cout << "face = " << face << std::endl;
             abort();
           }
 
-          VXG[i] += (FXG[k] + .25*(xi-FXG[k])) * volumetmp;
-          VYG[i] += (FYG[k] + .25*(yi-FYG[k])) * volumetmp;
-          VZG[i] += (FZG[k] + .25*(zi-FZG[k])) * volumetmp;
-          VVolume[i] += volumetmp;
+          polyhedron_center_x[i] += (polygon_center_x[face] +
+                                     .25*(xi-polygon_center_x[face])) * volumetmp;
+          polyhedron_center_y[i] += (polygon_center_y[face] +
+                                     .25*(yi-polygon_center_y[face])) * volumetmp;
+          polyhedron_center_z[i] += (polygon_center_z[face] +
+                                     .25*(zi-polygon_center_z[face])) * volumetmp;
+          polyhedron_volume[i] += volumetmp;
         }
 
-        VXG[i] = VXG[i] / VVolume[i];
-        VYG[i] = VYG[i] / VVolume[i];
-        VZG[i] = VZG[i] / VVolume[i];
+        polyhedron_center_x[i] = polyhedron_center_x[i] / polyhedron_volume[i];
+        polyhedron_center_y[i] = polyhedron_center_y[i] / polyhedron_volume[i];
+        polyhedron_center_z[i] = polyhedron_center_z[i] / polyhedron_volume[i];
 
     }
 }
@@ -222,9 +222,9 @@ void CalcTranses::ComputeControlVolumeList()
   CVType.resize(NbCVs);
   CVZone.resize(NbCVs);
   CVVolume.resize(NbCVs);
-  CVx.resize(NbCVs);
-  CVy.resize(NbCVs);
-  CVz.resize(NbCVs);
+  CV_center_x.resize(NbCVs);
+  CV_center_y.resize(NbCVs);
+  CV_center_z.resize(NbCVs);
 
   for (std::size_t i=0; i<NbPolygons; i++)
     if (EQF[i] != -1) // Active polygon
@@ -232,10 +232,10 @@ void CalcTranses::ComputeControlVolumeList()
       std::size_t j = EQF[i];
       CVZone[j] = CodePolygon[i];
       CVType[j] = 2;  // Feature
-      CVx[j] = FXG[i];
-      CVy[j] = FYG[i];
-      CVz[j] = FZG[i];
-      CVVolume[j] = FArea[i] * ZVolumeFactor[CVZone[j]];
+      CV_center_x[j] = polygon_center_x[i];
+      CV_center_y[j] = polygon_center_y[i];
+      CV_center_z[j] = polygon_center_z[i];
+      CVVolume[j] = face_area[i] * ZVolumeFactor[CVZone[j]];
     }
 
   for (int i=0;i<NbPolyhedra;i++)
@@ -245,10 +245,10 @@ void CalcTranses::ComputeControlVolumeList()
       std::size_t j = EQV[i];
       CVZone[j] = CodePolyhedron[i];
       CVType[j] = 1;  // Volume
-      CVx[j] = VXG[i];
-      CVy[j] = VYG[i];
-      CVz[j] = VZG[i];
-      CVVolume[j] = VVolume[i] * ZVolumeFactor[CVZone[j]];
+      CV_center_x[j] = polyhedron_center_x[i];
+      CV_center_y[j] = polyhedron_center_y[i];
+      CV_center_z[j] = polyhedron_center_z[i];
+      CVVolume[j] = polyhedron_volume[i] * ZVolumeFactor[CVZone[j]];
     }
   }
 }
@@ -415,8 +415,8 @@ void CalcTranses::ConstructConnectionList()
 
     // std::cout << "NbConnections = "<< NbConnections << std::endl;
 
-    ConType.resize(NbConnections);
-    ConN.resize(NbConnections);
+    connection_type.resize(NbConnections);
+    n_connection_elements.resize(NbConnections);
     ConCV.resize(NbConnections);
     ConTr.resize(NbConnections);
     ConArea.resize(NbConnections);
@@ -433,13 +433,13 @@ void CalcTranses::ConstructConnectionList()
     ConP2y.resize(NbConnections);
     ConP2z.resize(NbConnections);
 
-    ConIx.resize(NbConnections);
-    ConIy.resize(NbConnections);
-    ConIz.resize(NbConnections);
+    con_center_x.resize(NbConnections);
+    con_center_y.resize(NbConnections);
+    con_center_z.resize(NbConnections);
 
-    ConVx.resize(NbConnections);
-    ConVy.resize(NbConnections);
-    ConVz.resize(NbConnections);
+    con_normal_x.resize(NbConnections);
+    con_normal_y.resize(NbConnections);
+    con_normal_z.resize(NbConnections);
 
 
     NbTransmissibility = 0;
@@ -458,31 +458,31 @@ void CalcTranses::ConstructConnectionList()
       if (CodePolygon[i] < 0 && ListV2[i] >= 0)  // M-M
       {
         // std::cout << "M-M " << i << std::endl;
-        ConType[k] = 1;
-        ConN[k] = 2;
+        connection_type[k] = ConnectionType::matrix_matrix;
+        n_connection_elements[k] = 2;
 
         ConCV[k].resize(2);
         ConCV[k][0] = EQV[ListV1[i]];
         ConCV[k][1] = EQV[ListV2[i]];
 
         ConArea[k].resize(2);
-        ConArea[k][0] = ConArea[k][1] = FArea[i];
+        ConArea[k][0] = ConArea[k][1] = face_area[i];
 
-        ConP1x[k] = Fnx[i];
-        ConP1y[k] = Fny[i];
-        ConP1z[k] = Fnz[i];
+        ConP1x[k] = face_normal_x[i];
+        ConP1y[k] = face_normal_y[i];
+        ConP1z[k] = face_normal_z[i];
 
-        ConP2x[k] = Fnx[i];
-        ConP2y[k] = Fny[i];
-        ConP2z[k] = Fnz[i];
+        ConP2x[k] = face_normal_x[i];
+        ConP2y[k] = face_normal_y[i];
+        ConP2z[k] = face_normal_z[i];
 
-        ConIx[k] = FXG[i];
-        ConIy[k] = FYG[i];
-        ConIz[k] = FZG[i];
+        con_center_x[k] = polygon_center_x[i];
+        con_center_y[k] = polygon_center_y[i];
+        con_center_z[k] = polygon_center_z[i];
 
-        ConVx[k] = Fnx[i];
-        ConVy[k] = Fny[i];
-        ConVz[k] = Fnz[i];
+        con_normal_x[k] = face_normal_x[i];
+        con_normal_y[k] = face_normal_y[i];
+        con_normal_z[k] = face_normal_z[i];
 
         ConTr[k].resize(2);
         ConPerm[k].resize(2);
@@ -498,8 +498,8 @@ void CalcTranses::ConstructConnectionList()
       if (CodePolygon[i] >= 0 && ListV2[i] < 0) // M-F
       {
         // std::cout << "M-F " << i << std::endl;
-        ConType[k] = 2;
-        ConN[k] = 2;
+        connection_type[k] = ConnectionType::matrix_fracture;
+        n_connection_elements[k] = 2;
 
         ConCV[k].resize(2);
 
@@ -515,18 +515,18 @@ void CalcTranses::ConstructConnectionList()
         ConCV[k][1] = EQF[i];
 
         ConArea[k].resize(2);
-        ConArea[k][0] = ConArea[k][1] = FArea[i];
+        ConArea[k][0] = ConArea[k][1] = face_area[i];
 
-        ConP1x[k] = Fnx[i];
-        ConP1y[k] = Fny[i];
-        ConP1z[k] = Fnz[i];
+        ConP1x[k] = face_normal_x[i];
+        ConP1y[k] = face_normal_y[i];
+        ConP1z[k] = face_normal_z[i];
 
-        ConIx[k] = FXG[i];
-        ConIy[k] = FYG[i];
-        ConIz[k] = FZG[i];
-        ConVx[k] = Fnx[i];
-        ConVy[k] = Fny[i];
-        ConVz[k] = Fnz[i];
+        con_center_x[k] = polygon_center_x[i];
+        con_center_y[k] = polygon_center_y[i];
+        con_center_z[k] = polygon_center_z[i];
+        con_normal_x[k] = face_normal_x[i];
+        con_normal_y[k] = face_normal_y[i];
+        con_normal_z[k] = face_normal_z[i];
 
         ConTr[k].resize(2);
         ConPerm[k].resize(2);
@@ -543,26 +543,26 @@ void CalcTranses::ConstructConnectionList()
       {
         // std::cout << "M-F && F-M " << i << std::endl;
 
-        ConType[k] = 2;
-        ConN[k] = 2;
+        connection_type[k] = ConnectionType::matrix_fracture;
+        n_connection_elements[k] = 2;
 
         ConCV[k].resize(2);
         ConCV[k][0] = EQV[ListV1[i]];
         ConCV[k][1] = EQF[i];
 
         ConArea[k].resize(2);
-        ConArea[k][0] = ConArea[k][1] = FArea[i];
+        ConArea[k][0] = ConArea[k][1] = face_area[i];
 
-        ConP1x[k] = Fnx[i];
-        ConP1y[k] = Fny[i];
-        ConP1z[k] = Fnz[i];
+        ConP1x[k] = face_normal_x[i];
+        ConP1y[k] = face_normal_y[i];
+        ConP1z[k] = face_normal_z[i];
 
-        ConIx[k] = FXG[i];
-        ConIy[k] = FYG[i];
-        ConIz[k] = FZG[i];
-        ConVx[k] = Fnx[i];
-        ConVy[k] = Fny[i];
-        ConVz[k] = Fnz[i];
+        con_center_x[k] = polygon_center_x[i];
+        con_center_y[k] = polygon_center_y[i];
+        con_center_z[k] = polygon_center_z[i];
+        con_normal_x[k] = face_normal_x[i];
+        con_normal_y[k] = face_normal_y[i];
+        con_normal_z[k] = face_normal_z[i];
 
         ConTr[k] .resize(2);
         ConPerm[k].resize(2);
@@ -572,25 +572,25 @@ void CalcTranses::ConstructConnectionList()
 
         k++;
 
-        ConType[k] = 2;
-        ConN[k] = 2;
+        connection_type[k] = ConnectionType::matrix_fracture;
+        n_connection_elements[k] = 2;
         ConCV[k].resize(2);
         ConCV[k][0] = EQV[ListV2[i]];
         ConCV[k][1] = EQF[i];
 
         ConArea[k].resize(2);
-        ConArea[k][0] = ConArea[k][1] = FArea[i];
+        ConArea[k][0] = ConArea[k][1] = face_area[i];
 
-        ConP1x[k] = Fnx[i];
-        ConP1y[k] = Fny[i];
-        ConP1z[k] = Fnz[i];
+        ConP1x[k] = face_normal_x[i];
+        ConP1y[k] = face_normal_y[i];
+        ConP1z[k] = face_normal_z[i];
 
-        ConIx[k] = FXG[i];
-        ConIy[k] = FYG[i];
-        ConIz[k] = FZG[i];
-        ConVx[k] = Fnx[i];
-        ConVy[k] = Fny[i];
-        ConVz[k] = Fnz[i];
+        con_center_x[k] = polygon_center_x[i];
+        con_center_y[k] = polygon_center_y[i];
+        con_center_z[k] = polygon_center_z[i];
+        con_normal_x[k] = face_normal_x[i];
+        con_normal_y[k] = face_normal_y[i];
+        con_normal_z[k] = face_normal_z[i];
 
         ConTr[k] .resize(2);
         ConPerm[k].resize(2);
@@ -614,26 +614,26 @@ void CalcTranses::ConstructConnectionList()
       }
       if ( ( j-i ) >= 2 )
       {
-        ConType[k] = 3;
-        ConN[k] = ( j-i );
+        connection_type[k] = ConnectionType::fracture_fracture;
+        n_connection_elements[k] = ( j-i );
 
         ConCV[k].resize(j-i);
         for ( std::size_t n=i; n<j; n++ )
           ConCV[k][n-i] = EQF[ListF[n]];
 
-        ConIx[k] = X[ListE1[i]];
-        ConIy[k] = Y[ListE1[i]];
-        ConIz[k] = Z[ListE1[i]];
-        ConVx[k] = X[ListE1[i]] - X[ListE2[i]];
-        ConVy[k] = Y[ListE1[i]] - Y[ListE2[i]];
-        ConVz[k] = Z[ListE1[i]] - Z[ListE2[i]];
+        con_center_x[k] = X[ListE1[i]];
+        con_center_y[k] = Y[ListE1[i]];
+        con_center_z[k] = Z[ListE1[i]];
+        con_normal_x[k] = X[ListE1[i]] - X[ListE2[i]];
+        con_normal_y[k] = Y[ListE1[i]] - Y[ListE2[i]];
+        con_normal_z[k] = Z[ListE1[i]] - Z[ListE2[i]];
 
         ConArea[k].resize(j-1);
 
         for ( std::size_t n = i; n < j; n++ ) // Double check the formula
         {
           ConArea[k][n - i] = ZVolumeFactor[CVZone[ConCV[k][n - i]]] *
-              sqrt ( ConVx[k] * ConVx[k] + ConVy[k] * ConVy[k] + ConVz[k] * ConVz[k] );
+              sqrt ( con_normal_x[k] * con_normal_x[k] + con_normal_y[k] * con_normal_y[k] + con_normal_z[k] * con_normal_z[k] );
           // TODO TIMUR (F-F connection)
           ConArea[k][n - i] *= vTimurConnectionFactor[CVZone[ConCV[k][n - i]]];
         }
@@ -644,7 +644,7 @@ void CalcTranses::ConstructConnectionList()
         ConGeom[k].resize(j-i);
         ConMult[k].resize(j-i);
 
-        NbTransmissibility += ( ConN[k]* ( ConN[k]-1 ) ) /2;
+        NbTransmissibility += ( n_connection_elements[k] * ( n_connection_elements[k]-1 ) ) /2;
         k++;
       }
       i = j;
@@ -682,49 +682,54 @@ void CalcTranses::ComputeContinuityNode()
     int j, k;
     double  hx,hy,hz,px,py,pz;
 
-    Conhx.resize(NbConnections);
-    Conhy.resize(NbConnections);
-    Conhz.resize(NbConnections);
+    con_center_proj_x.resize(NbConnections);
+    con_center_proj_y.resize(NbConnections);
+    con_center_proj_z.resize(NbConnections);
 
     for (std::size_t i=0; i<NbConnections; i++)
     {
 
-      Conhx[i] = Conhy[i] = Conhz[i] = 0;
+      con_center_proj_x[i] = con_center_proj_y[i] = con_center_proj_z[i] = 0;
 
-      if (ConType[i] == 1)  // M-M ///
+      if (connection_type[i] == ConnectionType::matrix_matrix)
       {
-        px = CVx[ConCV[i][1]] - CVx[ConCV[i][0]];
-        py = CVy[ConCV[i][1]] - CVy[ConCV[i][0]];
-        pz = CVz[ConCV[i][1]] - CVz[ConCV[i][0]];
+        px = CV_center_x[ConCV[i][1]] - CV_center_x[ConCV[i][0]];
+        py = CV_center_y[ConCV[i][1]] - CV_center_y[ConCV[i][0]];
+        pz = CV_center_z[ConCV[i][1]] - CV_center_z[ConCV[i][0]];
 
-        ProjectionA(  CVx[ConCV[i][0]], CVy[ConCV[i][0]], CVz[ConCV[i][0]],
-                      px, py, pz,
-                      ConIx[i], ConIy[i], ConIz[i],
-                      ConVx[i], ConVy[i], ConVz[i],
-                      &Conhx[i], &Conhy[i], &Conhz[i]);
+        // get projection of connection center onto line connecting two CVs
+        ProjectionA(CV_center_x[ConCV[i][0]], CV_center_y[ConCV[i][0]], CV_center_z[ConCV[i][0]],
+                    px, py, pz,
+                    con_center_x[i], con_center_y[i], con_center_z[i],
+                    con_normal_x[i], con_normal_y[i], con_normal_z[i],
+                    &con_center_proj_x[i], &con_center_proj_y[i], &con_center_proj_z[i]);
       }
-      else if (ConType[i] == 2)  // M-F ///
+      else if (connection_type[i] == ConnectionType::matrix_fracture)
       {
-        Conhx[i] = CVx[ConCV[i][1]];
-        Conhy[i] = CVy[ConCV[i][1]];
-        Conhz[i] = CVz[ConCV[i][1]];
+        // get projection of connection center onto line connecting two CVs
+        // in this case it's simply the center of the fracture
+        con_center_proj_x[i] = CV_center_x[ConCV[i][1]];
+        con_center_proj_y[i] = CV_center_y[ConCV[i][1]];
+        con_center_proj_z[i] = CV_center_z[ConCV[i][1]];
       }
-      else if (ConType[i] == 3)  // F-F ///
+      else if (connection_type[i] == ConnectionType::fracture_fracture)
       {
-        for (j=0;j<ConN[i];j++)
+        for (j=0; j<n_connection_elements[i]; j++)
         {
-          ProjectionB( CVx[ConCV[i][j]], CVy[ConCV[i][j]], CVz[ConCV[i][j]],
-                       ConIx[i], ConIy[i], ConIz[i],
-                       ConVx[i], ConVy[i], ConVz[i],
+          // in this case this projection is somewhat compliated
+          // probably it's a part of the star transformation?
+          ProjectionB( CV_center_x[ConCV[i][j]], CV_center_y[ConCV[i][j]], CV_center_z[ConCV[i][j]],
+                       con_center_x[i], con_center_y[i], con_center_z[i],
+                       con_normal_x[i], con_normal_y[i], con_normal_z[i],
                        &hx, &hy, &hz);
-          Conhx[i] += hx;
-          Conhy[i] += hy;
-          Conhz[i] += hz;
+          con_center_proj_x[i] += hx;
+          con_center_proj_y[i] += hy;
+          con_center_proj_z[i] += hz;
         }
 
-        Conhx[i] = Conhx[i] / ConN[i];
-        Conhy[i] = Conhy[i] / ConN[i];
-        Conhz[i] = Conhz[i] / ConN[i];
+        con_center_proj_x[i] = con_center_proj_x[i] / n_connection_elements[i];
+        con_center_proj_y[i] = con_center_proj_y[i] / n_connection_elements[i];
+        con_center_proj_z[i] = con_center_proj_z[i] / n_connection_elements[i];
       }
     }
 }
@@ -736,21 +741,22 @@ void CalcTranses::ComputeDirectionalPermeability()
 
     for (std::size_t i=0; i<NbConnections; i++)
     {
-      if (ConType[i] == 1)  // M-M //
+      if (connection_type[i] == ConnectionType::matrix_matrix)
       {
         k = ConCV[i][0];
         assert(k >= 0);
 
-        fx = CVx[k] - Conhx[i];
-        fy = CVy[k] - Conhy[i];
-        fz = CVz[k] - Conhz[i];
+        fx = CV_center_x[k] - con_center_proj_x[i];
+        fy = CV_center_y[k] - con_center_proj_y[i];
+        fz = CV_center_z[k] - con_center_proj_z[i];
+
         fl = sqrt(fx*fx + fy*fy + fz*fz);
         fx = fx/fl;
         fy = fy/fl;
         fz = fz/fl;
 
         Kx = ZPermeability[CVZone[k]][0]*fx +
-             ZPermeability[CVZone[k]][3]*fy+
+             ZPermeability[CVZone[k]][3]*fy +
              ZPermeability[CVZone[k]][4]*fz;
 
         Ky = ZPermeability[CVZone[k]][3]*fx+
@@ -787,14 +793,18 @@ void CalcTranses::ComputeDirectionalPermeability()
         k = ConCV[i][1];
         assert(k >= 0);
 
-        fx = CVx[k] - Conhx[i];
-        fy = CVy[k] - Conhy[i];
-        fz = CVz[k] - Conhz[i];
+        fx = CV_center_x[k] - con_center_proj_x[i];
+        fy = CV_center_y[k] - con_center_proj_y[i];
+        fz = CV_center_z[k] - con_center_proj_z[i];
         fl = sqrt(fx*fx + fy*fy + fz*fz);
         fx = fx/fl;
         fy = fy/fl;
         fz = fz/fl;
 
+        // WTF indices????
+        // Ok it's not voigt notation
+        // [0-2] are xyz
+        // [3-5] are symmetric components
         Kx = ZPermeability[CVZone[k]][0] * fx +
              ZPermeability[CVZone[k]][3] * fy +
              ZPermeability[CVZone[k]][4] * fz;
@@ -808,6 +818,9 @@ void CalcTranses::ComputeDirectionalPermeability()
              ZPermeability[CVZone[k]][2] * fz;
 
         ConPerm[i][1] = sqrt(Kx*Kx + Ky*Ky + Kz*Kz);
+
+        std::cout << ConCV[i][0] << " " << ConCV[i][1] << "\t"
+                  << ConPerm[i][0] << " " << ConPerm[i][0] << std::endl;
 
         // @HACK
         // We dont need a REAL value of conductivity
@@ -832,16 +845,16 @@ void CalcTranses::ComputeDirectionalPermeability()
         }
         ConMult[i][1]=sqrt(Kx*Kx+Ky*Ky+Kz*Kz);
       }
-      if (ConType[i] == 2)  // M-F ////
+      if (connection_type[i] == ConnectionType::matrix_fracture)
       {
         // std::cout << "M-F" << std::endl;
 
         k = ConCV[i][0];
         assert(k >= 0);
 
-        fx = CVx[k] - Conhx[i];
-        fy = CVy[k] - Conhy[i];
-        fz = CVz[k] - Conhz[i];
+        fx = CV_center_x[k] - con_center_proj_x[i];
+        fy = CV_center_y[k] - con_center_proj_y[i];
+        fz = CV_center_z[k] - con_center_proj_z[i];
         fl = sqrt(fx*fx + fy*fy + fz*fz);
         fx = fx/fl;
         fy = fy/fl;
@@ -888,10 +901,10 @@ void CalcTranses::ComputeDirectionalPermeability()
         ConMult[i][0] = sqrt(Kx*Kx + Ky*Ky + Kz*Kz);
         ConMult[i][1] = 1.0;
       }
-      if (ConType[i] == 3)  // F-F /////////////////////////////////////////////////
+      if (connection_type[i] == ConnectionType::fracture_fracture)
       {
         // std::cout << "F-F" << std::endl;
-        for (std::size_t j=0; j<ConN[i]; j++)
+        for (std::size_t j=0; j<n_connection_elements[i]; j++)
         {
           k = ConCV[i][j];
           assert(k >= 0);
@@ -914,52 +927,55 @@ void CalcTranses::ComputeTransmissibilityPart()
 
     for (std::size_t i=0; i<NbConnections; i++)
     {
-      if (ConType[i] == 1)  // M-M ///
+      if (connection_type[i] == ConnectionType::matrix_matrix)
       {
         std::size_t k  = ConCV[i][0];
-        nx = ConP1x[i];
-        ny = ConP1y[i];
-        nz = ConP1z[i];
+        // nx = ConP1x[i];
+        // ny = ConP1y[i];
+        // nz = ConP1z[i];
 
-        fx = CVx[k] - Conhx[i];
-        fy = CVy[k] - Conhy[i];
-        fz = CVz[k] - Conhz[i];
+        fx = CV_center_x[k] - con_center_proj_x[i];
+        fy = CV_center_y[k] - con_center_proj_y[i];
+        fz = CV_center_z[k] - con_center_proj_z[i];
         fl = sqrt(fx*fx + fy*fy + fz*fz);
-        fx = fx/fl;
-        fy = fy/fl;
-        fz = fz/fl;
+
+        // why? it's changed after
+        // fx = fx/fl;
+        // fy = fy/fl;
+        // fz = fz/fl;
 
         //    ConTr[i][0]=ConArea[i][0]*ConPerm[i][0]*ABS(nx*fx+ny*fy+nz*fz)/fl;
-        ConTr[i][0]   = ConArea[i][0]*ConPerm[i][0] * 1./fl;
-        ConGeom[i][0] = ConArea[i][0]*ConMult[i][0] * 1./fl;
+        ConTr[i][0]   = ConArea[i][0] * ConPerm[i][0] / fl;
+        ConGeom[i][0] = ConArea[i][0] * ConMult[i][0] / fl;
 
         k  = ConCV[i][1];
-        nx = ConP2x[i];
-        ny = ConP2y[i];
-        nz = ConP2z[i];
+        // nx = ConP2x[i];
+        // ny = ConP2y[i];
+        // nz = ConP2z[i];
 
-        fx = CVx[k] - Conhx[i];
-        fy = CVy[k] - Conhy[i];
-        fz = CVz[k] - Conhz[i];
+        fx = CV_center_x[k] - con_center_proj_x[i];
+        fy = CV_center_y[k] - con_center_proj_y[i];
+        fz = CV_center_z[k] - con_center_proj_z[i];
         fl = sqrt(fx*fx + fy*fy + fz*fz);
-        fx = fx/fl;
-        fy = fy/fl;
-        fz = fz/fl;
+        // why?
+        // fx = fx/fl;
+        // fy = fy/fl;
+        // fz = fz/fl;
 
         //    ConTr[i][1]=ConArea[i][1]*ConPerm[i][1]*ABS(nx*fx+ny*fy+nz*fz)/fl;
         ConTr[i][1]   = ConArea[i][1] * ConPerm[i][1] * 1./fl;
         ConGeom[i][1] = ConArea[i][1] * ConMult[i][1] * 1./fl;
       }
-      else if (ConType[i] == 2)  // M-F //
+      else if (connection_type[i] == ConnectionType::matrix_fracture)
       {
         std::size_t k = ConCV[i][0];
         nx = ConP1x[i];
         ny = ConP1y[i];
         nz = ConP1z[i];
 
-        fx = CVx[k] - Conhx[i];
-        fy = CVy[k] - Conhy[i];
-        fz = CVz[k] - Conhz[i];
+        fx = CV_center_x[k] - con_center_proj_x[i];
+        fy = CV_center_y[k] - con_center_proj_y[i];
+        fz = CV_center_z[k] - con_center_proj_z[i];
         fl = sqrt(fx*fx + fy*fy + fz*fz);
         fx = fx/fl;
         fy = fy/fl;
@@ -976,14 +992,14 @@ void CalcTranses::ComputeTransmissibilityPart()
         ConGeom[i][1] = ConArea[i][1] * ConMult[i][1] *
             1./(.5*ZVolumeFactor[CVZone[k]]);
       }
-      else if (ConType[i] == 3)  // F-F //
+      else if (connection_type[i] == ConnectionType::fracture_fracture)
       {
-        for (std::size_t j=0; j<ConN[i]; j++)
+        for (std::size_t j=0; j<n_connection_elements[i]; j++)
         {
           std::size_t k  = ConCV[i][j];
-          fx = CVx[k] - Conhx[i];
-          fy = CVy[k] - Conhy[i];
-          fz = CVz[k] - Conhz[i];
+          fx = CV_center_x[k] - con_center_proj_x[i];
+          fy = CV_center_y[k] - con_center_proj_y[i];
+          fz = CV_center_z[k] - con_center_proj_z[i];
           fl = sqrt(fx*fx + fy*fy + fz*fz);
           fx = fx/fl;
           fy = fy/fl;
@@ -1008,7 +1024,7 @@ void CalcTranses::ComputeTransmissibilityList()
     std::size_t k=0;
     for ( std::size_t i=0; i<NbConnections; i++ )
     {
-      if ( ConType[i] == 1 ) // M-M //
+      if ( connection_type[i] == ConnectionType::matrix_matrix )
       {
         iTr[k] = ConCV[i][0];
         jTr[k] = ConCV[i][1];
@@ -1029,7 +1045,7 @@ void CalcTranses::ComputeTransmissibilityList()
         }
         k++;
       }
-      if ( ConType[i] == 2 ) // M-F //
+      if ( connection_type[i] == ConnectionType::matrix_fracture )
       {
         iTr[k] = ConCV[i][0];
         jTr[k] = ConCV[i][1];
@@ -1052,18 +1068,18 @@ void CalcTranses::ComputeTransmissibilityList()
         }
         k++;
       }
-      else if ( ConType[i] == 3 ) // F-F ///
+      else if ( connection_type[i] == ConnectionType::fracture_fracture )
       {
         double SumTr = 0;
         double SumTr2 = 0;
-        for ( std::size_t j=0; j<ConN[i]; j++ )
+        for ( std::size_t j=0; j<n_connection_elements[i]; j++ )
           SumTr+=ConTr[i][j];
 
-        for ( std::size_t j=0; j<ConN[i]; j++ )
+        for ( std::size_t j=0; j<n_connection_elements[i]; j++ )
           SumTr2+=ConGeom[i][j];
 
-        for ( std::size_t j=0; j<ConN[i]-1; j++ )
-          for ( std::size_t n=j+1; n<ConN[i]; n++ )
+        for ( std::size_t j=0; j<n_connection_elements[i]-1; j++ )
+          for ( std::size_t n=j+1; n<n_connection_elements[i]; n++ )
           {
             iTr[k] = ConCV[i][j];
             jTr[k] = ConCV[i][n];
@@ -1080,7 +1096,7 @@ void CalcTranses::ComputeTransmissibilityList()
       }
       else
       {
-        // cout << "Wrong connection type " << k << ": "  << ConType[i]  << endl;
+        // cout << "Wrong connection type " << k << ": "  << connection_type[i]  << endl;
         // exit ( 0 );
       }
 
@@ -1220,7 +1236,7 @@ void CalcTranses::compute_flow_data()
       }
     }
 
-  // Features
+    // Features
     vector<int> vPriority; vPriority.resize(NbPolygons);
     int kk = 1;
     for (std::size_t i = 0; i < NbPolygons; i++)
@@ -1283,7 +1299,7 @@ void CalcTranses::writeOutputFiles(const std::string & output_path) const
     //fprintf(out,"%d\n",NbCVs);
     fprintf(poutfile,"%s\n","DEPTH");
     for (i=0;i<NbCVs;i++)
-      fprintf(poutfile,"%e\n",-CVz[i]);
+      fprintf(poutfile,"%e\n",-CV_center_z[i]);
 
     fprintf(poutfile,"%s\n","/\n");
     fclose(poutfile);
@@ -1325,35 +1341,35 @@ void CalcTranses::writeOutputFiles(const std::string & output_path) const
     int k=0;
     for(i=0;i<NbConnections;i++)
     {
-      if(ConType[i]==1 || ConType[i]==2)  // M-M, M-F /
+      if(connection_type[i]==1 || connection_type[i]==2)  // M-M, M-F /
       {
-        if(ConType[i]==1)   // M-M ////////////////////////////
+        if(connection_type[i]==1)   // M-M ////////////////////////////
         {
-          // Con# ConType i ai j aj -> Tij=ai*aj/(ai+aj)
+          // Con# connection_type i ai j aj -> Tij=ai*aj/(ai+aj)
           fprintf(poutfile,"%d\t%d\t%d\t%e\t%d\t%e\n", k,
-                  ConType[i], ConCV[i][0], ConTr[i][0], ConCV[i][1], ConTr[i][1]);
+                  connection_type[i], ConCV[i][0], ConTr[i][0], ConCV[i][1], ConTr[i][1]);
         }
-        if(ConType[i]==2)   // M-F ////////////////////////////
+        if(connection_type[i]==2)   // M-F ////////////////////////////
         {
-          //Con# ConType m am i ci ei ki ai=ci*ki/ei-> Tmi=am*ai/(am+ai)
+          //Con# connection_type m am i ci ei ki ai=ci*ki/ei-> Tmi=am*ai/(am+ai)
         fprintf(poutfile,"%d\t%d\t%d\t%e\t%d\t%e\t%e\t%e\n", k,
-                ConType[i], ConCV[i][0], ConTr[i][0], ConCV[i][1],
+                connection_type[i], ConCV[i][0], ConTr[i][0], ConCV[i][1],
                 2.*ConArea[i][1], ZVolumeFactor[CVZone[ConCV[i][1]]], ConPerm[i][1]);
         }
       k++;
       }
-      if(ConType[i]==3) // F-F /////////////////////////////////////////////////
+      if(connection_type[i]==3) // F-F /////////////////////////////////////////////////
       {
-        //Con# ConType i ci ei ki j cj ej kj N n cn en kn
+        //Con# connection_type i ci ei ki j cj ej kj N n cn en kn
         //ai=ci*ki*ei aj=cj*kj*ej an=cn*kn*en
         //-> Tij=ai*aj/(SUM an)
         //
-        for(int j=0;j<ConN[i]-1;j++)
-          for(int n=j+1;n<ConN[i];n++)
+        for(int j=0;j<n_connection_elements[i]-1;j++)
+          for(int n=j+1;n<n_connection_elements[i];n++)
           {
             fprintf(poutfile,"%d\t%d\t%d\t%e\t%e\t%e\t%d\t%e\t%e\t%e\t",
                     k,
-                    ConType[i],
+                    connection_type[i],
 
                     ConCV[i][j],
                     ConTr[i][j]/(ConPerm[i][j]*ZVolumeFactor[CVZone[ConCV[i][j]]]),
@@ -1365,8 +1381,8 @@ void CalcTranses::writeOutputFiles(const std::string & output_path) const
                     ZVolumeFactor[CVZone[ConCV[i][n]]],
                     ConPerm[i][n]);
 
-            fprintf(poutfile,"%d\t",ConN[i]);
-            for(int m=0;m<ConN[i];m++)
+            fprintf(poutfile,"%d\t",n_connection_elements[i]);
+            for(int m=0;m<n_connection_elements[i];m++)
               fprintf(poutfile,"%d\t%e\t%e\t%e\t",
                       ConCV[i][m],
                       ConTr[i][m]/(ConPerm[i][m]*ZVolumeFactor[CVZone[ConCV[i][m]]]),
@@ -1395,7 +1411,7 @@ void CalcTranses::extractData(FlowData & data) const
   {
     data.cells[i].volume   = CVVolume[i];
     data.cells[i].porosity = ZPorosity[CVZone[i]];
-    data.cells[i].depth    = -CVz[i];
+    data.cells[i].depth    = -CV_center_z[i];
   }
 
   // Transmissibility
@@ -1410,7 +1426,7 @@ void CalcTranses::extractData(FlowData & data) const
   // data.connection_type.resize(NbConnections);
   // for(std::size_t i=0;i<NbConnections;i++)
   // {
-  //   // data.connection_type[i] = ConType[i];
+  //   // data.connection_type[i] = connection_type[i];
   // }
 }
 

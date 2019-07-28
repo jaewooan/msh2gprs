@@ -15,6 +15,7 @@ ADD_LIBRARY(gprs_data
   UnionFind.cpp
   discretization/DiscretizationBase.cpp
   discretization/DiscretizationTPFA.cpp
+  discretization/DiscretizationDFM.cpp
 )
 
 SET_TARGET_PROPERTIES (

@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
   std::cout << "Setup wells" << std::endl;
   preprocessor.setupWells();
 
-  if (preprocessor.dfm_faces.size() > 0)
+  if (preprocessor.flow_dfm_faces.size() > 0)
   {
     cout << "Split FEM mesh on internal surfaces" << endl;
     preprocessor.splitInternalFaces();
@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
       filesystem::remove(efrac_vtk_file);
     }
   }
-  if (preprocessor.n_flow_dfm_faces == 0)
+  if (preprocessor.flow_dfm_faces.size() == 0)
   {
     const std::string dfm_vtk_file = output_dir + "dfm.vtk";
     if (filesystem::exists(dfm_vtk_file))

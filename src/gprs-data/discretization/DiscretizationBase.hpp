@@ -7,22 +7,44 @@
 namespace discretization
 {
 
-using PhysicalFace = gprs_data::PhysicalFace;
+using PhysicalFace = gprs_data::FractureFace;
 
-struct FaceData
+
+enum ControlVolumeType
 {
+  cell,
+  face
+};
+
+
+enum ConnectionType
+{
+  matrix_matrix = 1,
+  matrix_fracture = 2,
+  fracture_fracture = 3
+};
+
+
+struct ConnectionData
+{
+  ConnectionType type;
   std::vector<double> coefficients;
   std::vector<size_t> elements;
 };
 
 
-struct CellData
+struct ControlVolumeData
 {
+  ControlVolumeType type;
+  // map control volume to cell/face index
+  std::size_t       master;
+  angem::Point<3,double> center;
   double volume;
   double porosity;
-  double depth;
+  angem::Tensor2<3,double> permeability;
   std::vector<double> custom;
 };
+
 
 /* This is an abstract base class for
  * all discretization classes out there. */
@@ -33,10 +55,17 @@ class DiscretizationBase
                      const std::set<int>                                 & dfm_markers,
                      const std::vector<std::vector<double>>              & props,
                      const std::vector<std::string>                      & keys);
+
+  // get a reference to the face_data vector
+  std::vector<ConnectionData> & get_face_data();
+  // get a reference to the cell_data vector
+  std::vector<ControlVolumeData> & get_cell_data();
+  // main method. build the discretization
   virtual void build() = 0;
-  virtual void build_cell_data();
 
  protected:
+  // build control volumes data
+  virtual void build_cell_data();
   // is a face a dfm fracture
   bool is_fracture (const int marker);
   angem::Tensor2<3,double> get_permeability(const std::size_t cell) const;
@@ -59,8 +88,8 @@ class DiscretizationBase
   std::array<int, 9> perm_keys = {-1,-1,-1,-1,-1,-1,-1,-1,-1};
   int poro_key = -1;
   std::vector<size_t> custom_keys;
-  std::vector<FaceData> face_data;
-  std::vector<CellData> cell_data;
+  std::vector<ConnectionData> con_data;
+  std::vector<ControlVolumeData> cv_data;
 };
 
 }

@@ -12,6 +12,8 @@ namespace mesh
 {
 using Point = angem::Point<3,double>;
 using FaceMap = std::unordered_map<hash_type, Face>;
+using size_t = std::size_t;
+using vertex_pair = std::pair<size_t, size_t>;
 
 class face_iterator
 {
@@ -55,6 +57,8 @@ class face_iterator
   std::vector<Point> vertices() const;
   // get vector of face vertex indices
   std::vector<std::size_t> vertex_indices() const;
+  // get vector of index pairs that represent edges
+  std::vector<vertex_pair> edges() const;
   // get angem::Polygon from vertices
   angem::Polygon<double> polygon() const;
   double area() const;
