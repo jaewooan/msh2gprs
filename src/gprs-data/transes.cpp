@@ -450,11 +450,6 @@ void CalcTranses::ConstructConnectionList()
     if (NbPolyhedra > 0)
     for (std::size_t i=0; i<NbPolygons; i++)
     {
-      // if (CodePolygon[i] < 0 && ListV2[i] >= 0)  // M-M
-      // if (CodePolygon[i] >= 0 && ListV2[i] < 0) // M-F
-      // if (CodePolygon[i]>=0 && ListV2[i]>=0)	// M-F and F-M
-
-      // if (ListV1[i] < 0 && ListV2[i] >= 0)  // M-M
       if (CodePolygon[i] < 0 && ListV2[i] >= 0)  // M-M
       {
         // std::cout << "M-M " << i << std::endl;
@@ -819,8 +814,8 @@ void CalcTranses::ComputeDirectionalPermeability()
 
         ConPerm[i][1] = sqrt(Kx*Kx + Ky*Ky + Kz*Kz);
 
-        std::cout << ConCV[i][0] << " " << ConCV[i][1] << "\t"
-                  << ConPerm[i][0] << " " << ConPerm[i][0] << std::endl;
+        // std::cout << ConCV[i][0] << " " << ConCV[i][1] << "\t"
+        //           << ConPerm[i][0] << " " << ConPerm[i][0] << std::endl;
 
         // @HACK
         // We dont need a REAL value of conductivity
@@ -986,6 +981,8 @@ void CalcTranses::ComputeTransmissibilityPart()
 
         k = ConCV[i][1];
 
+        // is it like half a fracture?????
+        // units are different from cell tran!!!!!
         ConTr[i][1] = ConArea[i][1] * ConPerm[i][1] *
             1./(.5*ZVolumeFactor[CVZone[k]]);
 
@@ -1501,18 +1498,6 @@ void CalcTranses::save_output(const FlowData    & data,
           << std::scientific
           << face.transmissibility * transmissibility_conversion_factor
           << std::defaultfloat << std::endl;
-
-      // if (element_pair.first == 110)
-      // {
-      //   std::cout << "outtran("
-      //             << element_pair.first
-      //             <<", "
-      //             << element_pair.second
-      //             <<") = "
-      //             << face.transmissibility
-      //             << std::endl;
-      //   // abort();
-      // }
     }
     out << "/" << std::endl;
 

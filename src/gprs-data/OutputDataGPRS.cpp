@@ -51,7 +51,9 @@ void OutputDataGPRS::write_output(const std::string & output_path)
   }
 
   std::cout << "save flow data" << std::endl;
-  flow::CalcTranses::save_output(data.flow_data, output_path);
+  // flow::CalcTranses::save_output(data.flow_data, output_path);
+  saveFlowControlVolumeData(output_path + data.config.flow_cv_file);
+  saveFlowConnections(output_path + data.config.flow_connection_file);
 }
 
 
@@ -201,7 +203,8 @@ void OutputDataGPRS::saveGeometry(const std::string & output_path)
   geomechfile << "GMFACE_GMCELLS" << std::endl;
   for (const auto & face : ordered_faces)
   {
-    if (data.is_fracture(face.marker()))  // timur want to retain neighbors of master frac face
+    // timur want to retain neighbors of master frac face
+    if (data.is_fracture(face.marker()))
     {
       if (face.index() == face.master_index())
       {
@@ -530,7 +533,7 @@ void OutputDataGPRS::saveDiscreteFractureProperties(const std::string file_name)
 
 
 void OutputDataGPRS::saveWells(const std::string file_name,
-                           const std::string vtk_file_name)
+                               const std::string vtk_file_name)
 {
   std::ofstream file;
   file.open(file_name.c_str());
@@ -569,6 +572,84 @@ void OutputDataGPRS::saveWells(const std::string file_name,
   IO::VTKWriter::write_well_trajectory(data.well_vertices.points,
                                        data.well_vertex_indices,
                                        vtk_file_name);
+}
+
+
+void OutputDataGPRS::saveFlowControlVolumeData(const std::string file_name)
+{
+  ofstream out;
+  out.open((file_name).c_str());
+
+  /////  OUTPUT Dimensions /////
+  out << "DIMENS" << std::endl;
+  out << data.flow_cv_data.size() << "\t"
+      << 1 << "\t" << 1 << std::endl;
+  out << "/" << std::endl << std::endl;
+
+  /////  OUTPUT Volumes /////
+  out << "VOLUME" << std::endl;
+  for (const auto & v : data.flow_cv_data)
+    out << v.volume << std::endl;
+  out << "/" << std::endl << std::endl;
+
+  ///// OUTPUT Porosity /////
+  out << "PORO" << std::endl;
+  for (const auto & v : data.flow_cv_data)
+    out << v.porosity << std::endl;
+  out << "/" << std::endl << std::endl;
+
+  ///// OUTPUT Depth  /////
+  out << "DEPTH" << std::endl;
+  for (const auto & v : data.flow_cv_data)
+    out << -v.center[2] << std::endl;
+  out << "/" << std::endl << std::endl;
+
+  //  additional data (if any)
+  for (std::size_t i=0; i<data.custom_flow_keys.size(); ++i)
+  {
+    out << data.custom_flow_keys[i];
+    for (const auto & v : data.flow_cv_data)
+    {
+      if (v.custom.size() != data.custom_flow_keys.size())
+      {
+        std::cout << v.custom.size() << " but "
+                  << data.custom_flow_keys.size() << std::endl;
+        for (auto key : data.custom_flow_keys)
+          std::cout << key << " ";
+        std::cout << std::endl;
+      }
+      assert(v.custom.size() == data.custom_flow_keys.size());
+      out << v.custom[i] << std::endl;
+    }
+    out << "/" << std::endl << std::endl;
+  }
+  out.close();
+}
+
+
+void OutputDataGPRS::saveFlowConnections(const std::string file_name)
+{
+  ofstream out;
+  out.open((file_name).c_str());
+
+  /* TPFA connections */
+  out << "TPFACONNS" << std::endl;
+  const auto & cons = data.flow_connection_data;
+  std::size_t n_connections = cons.size();
+  out << n_connections << std::endl;
+    for (const auto & c : cons)
+    {
+      assert( c.elements.size() == 2 );
+      for (const std::size_t i : c.elements)
+        out << i << "\t";
+
+        out  << std::scientific
+             << -c.coefficients[0] * data.config.transmissibility_units
+             << std::defaultfloat << std::endl;
+    }
+    out << "/" << std::endl;
+
+    out.close();
 }
 
 }

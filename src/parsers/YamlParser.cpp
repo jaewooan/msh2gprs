@@ -1,7 +1,8 @@
 #include <YamlParser.hpp>
 #include "yaml-cpp/node/parse.h"  // loadfile
 #include <angem/Rectangle.hpp>
-
+#include <algorithm>  // std::transform
+#include <cctype>     // std::tolower
 
 namespace Parsers
 {
@@ -343,6 +344,24 @@ void YamlParser::boundary_conditions_faces(const YAML::Node & node)
 }
 
 
+gprs_data::BoundaryConditionType convert_bc_string(std::string str)
+{
+  // std::transform(str.begin(), str.end(), str.begin(), std::tolower);
+  std::transform(str.begin(), str.end(), str.begin(),
+                 [](unsigned char c){ return std::tolower(c);});
+  if (str == "0" || str == "no_condition")
+    return gprs_data::BoundaryConditionType::no_condition;
+  else if (str == "1" || str == "dirichlet")
+    return gprs_data::BoundaryConditionType::dirichlet;
+  else if (str == "2" || str == "neumann")
+    return gprs_data::BoundaryConditionType::neumann;
+  else if (str == "3" || str == "robin")
+    return gprs_data::BoundaryConditionType::robin;
+  else
+    throw std::invalid_argument(str);
+}
+
+
 void YamlParser::bc_face(const YAML::Node & node,
                          BCConfig         & conf)
 {
@@ -352,7 +371,8 @@ void YamlParser::bc_face(const YAML::Node & node,
     std::cout << "\t\t\treading entry " << key << std::endl;
 
     if (key == "type")
-      conf.type = it->second.as<int>();
+      // conf.type = it->second.as<int>();
+      conf.type = convert_bc_string(it->second.as<std::string>());
     else if (key == "label")
       conf.label = it->second.as<int>();
     else if (key == "value")

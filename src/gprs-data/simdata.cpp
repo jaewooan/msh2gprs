@@ -1149,52 +1149,52 @@ void SimData::splitInternalFaces()
 void SimData::handleConnections()
 {
   std::cout << "handle connections" << std::endl;
-  abort();
-  // gm_cell_to_flow_cell.resize(flow_data.volumes.size());
-  // gm_cell_to_flow_cell.resize(grid.n_cells(), std::vector<std::size_t>());
+  gm_cell_to_flow_cell.resize(grid.n_cells());
 
-  // // cells
-  // for (auto cell = grid.begin_cells(); cell!=grid.end_cells(); ++cell)
-  //   for (const auto & conf : config.domains)
-  //   {
-  //     if (cell.marker() == conf.label) // cells
-  //       if (conf.coupled)
-  //       {
-  //         gm_cell_to_flow_cell[cell.index()].push_back(n_flow_dfm_faces + cell.index());
-  //         break;
-  //       }
-  //   }
+  // cells
+  for (auto cell = grid.begin_cells(); cell!=grid.end_cells(); ++cell)
+    for (const auto & conf : config.domains)
+    {
+      if (cell.marker() == conf.label) // cells
+        if (conf.coupled)
+        {
+          gm_cell_to_flow_cell[cell.index()].push_back
+              (res_cell_flow_index(cell.index()));
+          break;
+        }
+    }
 
-  // // finally embedded fractures
-  // for (std::size_t ifrac=0; ifrac<vEfrac.size(); ++ifrac)
-  // {
-  //   const auto & efrac = vEfrac[ifrac];
-  //   for (std::size_t i=0; i<efrac.cells.size(); ++i)
-  //   {
-  //     const std::size_t icell = efrac.cells[i];
-  //     for (const auto & conf: config.domains)
-  //       if (grid.cell_markers[icell] == conf.label and conf.coupled)
-  //         gm_cell_to_flow_cell[icell].push_back(efrac_flow_index(ifrac, i));
-  //   }
-  // }
+  // finally embedded fractures
+  for (std::size_t ifrac=0; ifrac<vEfrac.size(); ++ifrac)
+  {
+    const auto & efrac = vEfrac[ifrac];
+    for (std::size_t i=0; i<efrac.cells.size(); ++i)
+    {
+      const std::size_t icell = efrac.cells[i];
+      for (const auto & conf: config.domains)
+        if (grid.cell_markers[icell] == conf.label and conf.coupled)
+          gm_cell_to_flow_cell[icell].push_back(efrac_flow_index(ifrac, i));
+    }
+  }
 
-  // // update dfm face indices in map
-  // std::unordered_set<std::size_t> face_touched;
-  // std::size_t counter = 0;
-  // for (auto face = grid.begin_faces(); face != grid.end_faces(); ++ face)
-  //   if (is_fracture(face.marker()))
-  //   {
-  //     counter++;
-  //     auto flow_face_it = dfm_faces.find(face.master_index());
-  //     auto & facet = flow_face_it->second;
-  //     if (face_touched.insert(face.master_index()).second)
-  //     {
-  //       facet.fracture_index = find(face.marker(), fracture_face_markers);
-  //       facet.nface = face.index();
-  //     }
-  //   }
+  // update dfm face indices in map
+  std::unordered_set<std::size_t> face_touched;
+  std::size_t counter = 0;
+  for (auto face = grid.begin_faces(); face != grid.end_faces(); ++face)
+    if (is_fracture(face.marker()))
+    {
+      counter++;
+      auto mech_face_it = mech_dfm_faces.find(face.master_index());
+      assert(mech_face_it != mech_dfm_faces.end());
+      auto & facet = mech_face_it->second;
+      if (face_touched.insert(face.master_index()).second)
+      {
+        facet.fracture_index = find(face.marker(), fracture_face_markers);
+        facet.face_index = face.index();
+      }
+    }
 
-  // std::cout << "n new dfm face = " << counter << std::endl;
+  std::cout << "n new dfm face = " << counter << std::endl;
 }
 
 
@@ -1256,12 +1256,17 @@ void SimData::definePhysicalFacets()
         flow_face.aperture = conf.aperture; //m
         flow_face.conductivity = conf.conductivity; //mD.m
 
+        mech_face.face_index = face.index();
+        mech_dfm_faces.insert({face.index(), mech_face});
         if (coupled)
         {
           mech_face.coupled = true;
+          flow_face.cv_index = cv_index;
           flow_dfm_faces.insert({face.index(), flow_face});
+          std::cout << "cv_index " << cv_index << std::endl;
           cv_index++;
         }
+
       }  //  end DFM fracture face case
   }
 
@@ -1981,6 +1986,8 @@ void SimData::build_multiscale_data()
 // compute flow discretization
 void SimData::computeFlowDiscretization()
 {
+  std::cout << "building cell discr" << std::endl;
+  // building cell discretization
   std::unique_ptr<discretization::DiscretizationBase> p_discr;
   switch (config.discretization)
   {
@@ -1993,6 +2000,22 @@ void SimData::computeFlowDiscretization()
 
   p_discr->build();
 
+  //  copy to global
+  flow_cv_data.resize(grid.n_cells() + flow_dfm_faces.size());
+  for (const auto & cell : p_discr->get_cell_data())
+  {
+    const size_t cv = cell.master + flow_dfm_faces.size();
+    auto & new_cell = flow_cv_data[cv];
+    new_cell = cell;
+  }
+
+  flow_connection_data = p_discr->get_face_data();
+  for (auto & con : flow_connection_data)
+    for (size_t & cv : con.elements)
+      cv = res_cell_flow_index(cv);
+
+  ///////////////////////////////////////////////////////////
+  std::cout << "building DFM discretization" << std::endl;
   // build DFM discretization
   p_discr = make_unique<discretization::DiscretizationDFM>
                 (grid, fracture_face_markers, flow_dfm_faces,
@@ -2000,29 +2023,37 @@ void SimData::computeFlowDiscretization()
                  /* shift_marix = */flow_dfm_faces.size(),
                  /* shift_dfm =  */ 0);
   p_discr->build();
+  custom_flow_keys = p_discr->get_custom_keys();
 
-  // flow_cell_data = p_discr->get_cell_data();
-  // flow_face_data = p_discr->get_face_data();
+  std::cout << "copy dfm discr" << std::endl;
+  // copy to global
+  size_t i = 0;
+  for (const auto & cell : p_discr->get_cell_data())
+    if (cell.type == discretization::ControlVolumeType::face)
+    {
+      const size_t cv = i;
+      auto & new_cell = flow_cv_data[cv];
+      new_cell = cell;
+      i++;
+      std::cout << "face.index() = " << cell.master
+                << " original custom = " << cell.custom.size()
+                << " new custom = " << new_cell.custom.size()
+                << std::endl;
+    }
+  std::cout << "copy connections" << std::endl;
 
-  // std::cout << "copied shit" << std::endl;
+  i = flow_connection_data.size();
+  flow_connection_data.resize(flow_connection_data.size() +
+                              p_discr->get_face_data().size());
 
-  // ofstream out;
-  // string fname = "shit.txt";
-  // out.open((fname).c_str());
-  // out << "TPFACONNS" << std::endl;
-  // out << flow_face_data.size() << std::endl;
-  // for (const auto & face : flow_face_data)
-  // {
-  //   out << face.elements[0] << "\t";
-  //   out << face.elements[1] << "\t";
-  //   out << -face.coefficients[0] * config.transmissibility_units;
-  //   out << std::endl;
-  // }
+  for (const auto & con : p_discr->get_face_data())
+  {
+    auto & new_con = flow_connection_data[i];
+    new_con = con;
+    i++;
+  }
 
-  // out << "/" << std::endl;
-  // out.close();
-
-  exit(0);
+  std::cout << "done with discr" << std::endl;
 }
 
 }  // end namespace

@@ -32,10 +32,11 @@ void DiscretizationTPFA::build()
     if (face.neighbors().size() == 2)
       if (!is_fracture(face.marker()))
       {
+        con_data.emplace_back();
         if (method == tpfa_method::kirill)
-          build_kirill(face, con_data.emplace_back());
+          build_kirill(face, con_data.back());
         else // if (method == tpfa_method::mo)
-          build_mo(face, con_data.emplace_back());
+          build_mo(face, con_data.back());
         iface++;
       }
   }

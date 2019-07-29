@@ -172,10 +172,10 @@ Physical Surface(3333332) = {168, 146, 190, 212, 58, 124, 102, 80};
 Physical Volume(9999991) = {vol[]};
 
 
-Geometry.Tolerance = size_x / lc / 1e3;
+// Geometry.Tolerance = size_x / lc / 1e3;
 Geometry.AutoCoherence = 2;
-// Mesh.MshFileVersion = 2.2;
-Mesh.MshFileVersion = 4.1;
+Mesh.MshFileVersion = 2.2;
+// Mesh.MshFileVersion = 4.1;
 
 Mesh 3;  // Generalte 3D mesh
 Coherence Mesh;  // Remove duplicate entities

@@ -97,8 +97,8 @@ void DiscretizationBase::infer_custom_keys()
 {
   for (size_t j = 0; j < keys.size(); j++)
   {
-    if (std::find(perm_keys.begin(), perm_keys.end(), j) != perm_keys.end() and
-        j != poro_key)
+    if (std::find(perm_keys.begin(), perm_keys.end(), j) == perm_keys.end())
+        if (j != poro_key)
       custom_keys.push_back(j);
   }
 }
@@ -151,6 +151,15 @@ std::vector<ControlVolumeData> & DiscretizationBase::get_cell_data()
 std::vector<ConnectionData> & DiscretizationBase::get_face_data()
 {
   return con_data;
+}
+
+
+std::vector<std::string> DiscretizationBase::get_custom_keys() const
+{
+  std::vector<std::string> custom_key_names;
+  for (const size_t i : custom_keys)
+    custom_key_names.push_back(keys[i]);
+  return custom_key_names;
 }
 
 }

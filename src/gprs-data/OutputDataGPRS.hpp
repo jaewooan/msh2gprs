@@ -20,6 +20,8 @@ public:
   void saveDiscreteFractureProperties(const std::string file_name);
   void saveWells(const std::string file_name,
                  const std::string vtk_file_name);
+  void saveFlowControlVolumeData(const std::string file_name);
+  void saveFlowConnections(const std::string file_name);
 
 protected:
   SimData & data;

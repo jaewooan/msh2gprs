@@ -22,6 +22,8 @@ struct FractureFace
 struct MechanicalFractureFace
 {
   bool coupled;
+  int fracture_index;               // dfm fracture index
+  std::size_t face_index;           // master face index
   std::pair<std::size_t,std::size_t> neighbor_cells;
 };
 

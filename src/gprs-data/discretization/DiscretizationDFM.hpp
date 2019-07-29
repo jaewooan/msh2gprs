@@ -22,8 +22,10 @@ class DiscretizationDFM : public DiscretizationBase
  protected:
   // build data like volumes, depth, poro, etc.
   virtual void build_cell_data() override;
-  // build F-F and M-F connections
-  void build_connections();
+  // build M-F connection list
+  void build_fracture_matrix_connections();
+  // build F-F connection list
+  void build_fracture_fracture_connections();
   // build map edge to neighboring faces
   hash_algorithms::ConnectionMap<std::vector<size_t>>
   map_edge_to_faces();

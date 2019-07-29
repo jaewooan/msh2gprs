@@ -119,11 +119,11 @@ std::vector<vertex_pair> const_face_iterator::edges() const
     std::size_t i1, i2;
     if (i < verts.size() - 1)
     {
-      i1 = i; i2 = i+1;
+      i1 = verts[i]; i2 = verts[i+1];
     }
     else
     {
-      i1 = i; i2 = 0;
+      i1 = verts[ i ]; i2 = verts[ 0 ];
     }
     pairs[i] = std::make_pair(i1, i2);
   }

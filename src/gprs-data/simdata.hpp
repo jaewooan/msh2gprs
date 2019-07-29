@@ -251,8 +251,9 @@ public:
   std::unordered_set<int> boundary_face_markers;
 
   // flow discretization
-  std::vector<discretization::ControlVolumeData> flow_cell_data;
-  std::vector<discretization::ConnectionData> flow_face_data;
+  std::vector<discretization::ControlVolumeData> flow_cv_data;
+  std::vector<discretization::ConnectionData>    flow_connection_data;
+  std::vector<std::string> custom_flow_keys;
   // multiscale
   multiscale::MultiScaleOutputData ms_data;
   // std::vector<std::size_t> partitioning;

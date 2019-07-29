@@ -48,9 +48,9 @@ int main(int argc, char *argv[])
   SimdataConfig config;
   if (fname_config.substr(str_len - 4, str_len) == "json")
   {
-    Parsers::JsonParser parser;
-    parser.parse_file(fname_config);
-    config = parser.get_config();
+    // Parsers::JsonParser parser;
+    // parser.parse_file(fname_config);
+    // config = parser.get_config();
   }
   else if (fname_config.substr(str_len - 4, str_len) == "yaml")
   {
@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
   std::cout << "Setup wells" << std::endl;
   preprocessor.setupWells();
 
-  if (preprocessor.flow_dfm_faces.size() > 0)
+  if (preprocessor.mech_dfm_faces.size() > 0)
   {
     cout << "Split FEM mesh on internal surfaces" << endl;
     preprocessor.splitInternalFaces();

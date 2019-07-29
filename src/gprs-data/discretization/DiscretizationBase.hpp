@@ -30,6 +30,9 @@ struct ConnectionData
   ConnectionType type;
   std::vector<double> coefficients;
   std::vector<size_t> elements;
+  double area;
+  angem::Point<3,double> normal;
+  angem::Point<3,double> center;
 };
 
 
@@ -60,6 +63,8 @@ class DiscretizationBase
   std::vector<ConnectionData> & get_face_data();
   // get a reference to the cell_data vector
   std::vector<ControlVolumeData> & get_cell_data();
+  // get vector of strings of custom data keys
+  std::vector<std::string> get_custom_keys() const;
   // main method. build the discretization
   virtual void build() = 0;
 

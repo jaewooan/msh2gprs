@@ -131,13 +131,15 @@ struct SimdataConfig
   // GPRS format
   std::string mesh_file;
   std::string domain_file           = "domain.txt";
+  std::string flow_cv_file          = "fl_cell_data.txt";
+  std::string flow_connection_file  = "fl_face_data.txt";
   std::string mechanics_domain_file = "gm_geometry.txt";
   std::string efrac_file            = "gm_SDA.txt";
   std::string discrete_frac_file    = "gm_DFM.txt";
   std::string bcond_file            = "bcond.txt";
   std::string wells_file            = "wells.txt";
-  std::string mech_ms_file          = "ms_mech.txt";
-  std::string flow_ms_file          = "ms_flow.txt";
+  std::string mech_ms_file          = "ms_mech.txt";  // multiscale
+  std::string flow_ms_file          = "ms_flow.txt";  // multiscale
   // VTK format
   std::string reservoir_grid_vtk_file = "reservoir_mesh.vtk";
   std::string edfm_grid_vtk_file      = "efrac.vtk";
