@@ -154,7 +154,8 @@ DiscretizationDFM::map_edge_to_faces()
           auto & cvs = edge_face_connections.get_data(index);
 
           // get frac properties
-          cvs.push_back(face.index());
+          const auto & props = dfm_faces[face.index()];
+          cvs.push_back(props.cv_index);
         }
       }
   return edge_face_connections;
@@ -247,18 +248,40 @@ void DiscretizationDFM::build_fracture_fracture_connections()
 {
   // build fracture-fracture-connections
   // map edges to dfm faces
-  const auto edge_face_connections = map_edge_to_faces();
+  auto edge_face_connections = map_edge_to_faces();
   // we won't need all of those since there are edges connected to
   // only one face
   con_data.reserve(2*dfm_faces.size() + edge_face_connections.size());
-  for (const auto & edge_faces : edge_face_connections)
-    if (edge_faces.size() > 1)
+  for (auto edge = edge_face_connections.begin();
+       edge != edge_face_connections.end(); ++edge)
+  {
+    const std::vector<size_t> & face_cvs = *edge;
+    if (face_cvs.size() > 1)
     {
-      std::cout << "shitty shit" << std::endl;
-      auto &con = con_data.emplace_back();
-      con.elements = edge_faces;
-      con.type = ConnectionType::fracture_fracture;
+      const auto edge_vertices = edge.elements();
+      const Point e1 = grid.vertex_coortinace(edge.first);
+      const Point e2 = grid.vertex_coortinace(edge.second);
+      const Point edge_center = 0.5 * (e1 + e2) ;
+      const Point de = e2 - e1;
+      const double den = de.norm();
+
+      //    compute average (by number) projection onto the edge
+      Point cv_projection = edge_center;
+      for (std::size_t i = 0; i < face_cvs.size(); ++i)
+      {
+        const double t = de.dot(cv_data[face_cvs[i]] - edge_center) / den;
+        cv_projection += t * de / face_cvs.size();
+      }
+
+      for (std::size_t i = 0; i < face_cvs.size(); ++i)
+        for (std::size_t j = i+1; j < face_cvs.size(); ++j)
+        {
+          auto &con = con_data.emplace_back();
+          con.type = ConnectionType::fracture_fracture;
+          con.elements = {face_cvs[i], face_cvs[j]};
+        }
     }
+  }
 
   std::cout << "bye bye" << std::endl;
   exit(0);
