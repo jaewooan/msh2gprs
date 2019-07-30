@@ -176,7 +176,11 @@ protected:
 
   int		NbEdges;	// Actives
   std::vector<int>		ListV1, ListV2;
-  std::vector<int>		ListE1, ListE2, ListF;
+  // these two vectors form edges in the form liste1[i]-lieste2[i]
+  // there is a shitload of duplicates in this storage
+  std::vector<int>    ListE1; //  list of edges with smaller vertex indices
+  std::vector<int>    ListE2; // list of edges with higher vertex indices
+  std::vector<int>    ListF;  // list of faces the edge belongs two
 
   double		TotalVolume,FaceArea,delta;
   double		LocalDistance,t,xt,yt,zt;

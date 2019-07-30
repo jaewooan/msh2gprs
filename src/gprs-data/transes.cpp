@@ -444,9 +444,7 @@ void CalcTranses::ConstructConnectionList()
 
     NbTransmissibility = 0;
 
-    k=0;
-    // std::cout << "NbPolygons = " << NbPolygons << std::endl;
-
+    k=0;  // connection index
     if (NbPolyhedra > 0)
     for (std::size_t i=0; i<NbPolygons; i++)
     {
@@ -604,21 +602,21 @@ void CalcTranses::ConstructConnectionList()
     {
       j = i+1;
       while ( ( j<NbEdges ) && ( ListE1[i]==ListE1[j] ) && ( ListE2[i]==ListE2[j] ) )
-      {
         j++;
-      }
-      if ( ( j-i ) >= 2 )
+
+      if ( ( j-i ) >= 2 )  // otherwise it's the same face i think
       {
         connection_type[k] = ConnectionType::fracture_fracture;
         n_connection_elements[k] = ( j-i );
 
         ConCV[k].resize(j-i);
-        for ( std::size_t n=i; n<j; n++ )
+        for ( std::size_t n=i; n<j; n++ )  // CVs are faces here
           ConCV[k][n-i] = EQF[ListF[n]];
 
         con_center_x[k] = X[ListE1[i]];
         con_center_y[k] = Y[ListE1[i]];
         con_center_z[k] = Z[ListE1[i]];
+        // i have no idea, it's not pependicular to the edge is it
         con_normal_x[k] = X[ListE1[i]] - X[ListE2[i]];
         con_normal_y[k] = Y[ListE1[i]] - Y[ListE2[i]];
         con_normal_z[k] = Z[ListE1[i]] - Z[ListE2[i]];
@@ -627,8 +625,11 @@ void CalcTranses::ConstructConnectionList()
 
         for ( std::size_t n = i; n < j; n++ ) // Double check the formula
         {
+          // what the damn hell???
           ConArea[k][n - i] = ZVolumeFactor[CVZone[ConCV[k][n - i]]] *
-              sqrt ( con_normal_x[k] * con_normal_x[k] + con_normal_y[k] * con_normal_y[k] + con_normal_z[k] * con_normal_z[k] );
+              sqrt ( con_normal_x[k] * con_normal_x[k] +
+                     con_normal_y[k] * con_normal_y[k] +
+                     con_normal_z[k] * con_normal_z[k] );
           // TODO TIMUR (F-F connection)
           ConArea[k][n - i] *= vTimurConnectionFactor[CVZone[ConCV[k][n - i]]];
         }
