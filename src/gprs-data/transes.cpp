@@ -74,18 +74,38 @@ ProjectionA( double CVx,double CVy,double CVz,  // CV center
   *hz = CVz + t*pz;
 }
 /********************************************************************/
-void CalcTranses::ProjectionB( double mx,  double my,  double mz,
-                               double ix,  double iy,  double iz,
-                               double ux,  double uy,  double uz,
-                               double *hx, double *hy, double *hz)
+// void CalcTranses::ProjectionB( double mx,  double my,  double mz,
+//                                double ix,  double iy,  double iz,
+//                                double ux,  double uy,  double uz,
+//                                double *hx, double *hy, double *hz)
+
+    // {
+      // t = (ux*(mx-ix) + uy*(my-iy) + uz*(mz-iz)) /
+      //     (ux*ux + uy*uy + uz*uz);
+      // *hx = ix + t*ux;
+      // *hy = iy + t*uy;
+      // *hz = iz + t*uz;
+    // }
+
+/* dedge is thre difference of vertex coodrinates edge[1] - edge[0] */
+void CalcTranses::
+ProjectionB( double cv_center_x,  double cv_center_y,  double cv_center_z,
+             double con_center_x,  double con_center_y,  double con_center_z,
+             double dedge_x,  double dedge_y,  double dedge_z,
+             double *hx, double *hy, double *hz)
 {
-    double  t;
-
-    t = (ux*(mx-ix) + uy*(my-iy) + uz*(mz-iz)) / (ux*ux + uy*uy + uz*uz);
-
-    *hx = ix + t*ux;
-    *hy = iy + t*uy;
-    *hz = iz + t*uz;
+  // This code find an average projection of frac cv centers
+  //  onto the edge.
+  //  Note: it's not average by weight by rather by the number
+  //  of elements within connection
+  //  t = (frac_center - con_center) · dedge / ||dedge||
+  const double t = (dedge_x*(cv_center_x - con_center_x) +
+                    dedge_y*(cv_center_y - con_center_y) +
+                    dedge_z*(cv_center_z - con_center_z)) /
+                    (dedge_x*dedge_x + dedge_y*dedge_y + dedge_z*dedge_z);
+  *hx = con_center_x + t*dedge_x;
+  *hy = con_center_y + t*dedge_y;
+  *hz = con_center_z + t*dedge_z;
 }
 /********************************************************************/
 void CalcTranses::ComputeBasicGeometry()
@@ -616,7 +636,8 @@ void CalcTranses::ConstructConnectionList()
         con_center_x[k] = X[ListE1[i]];
         con_center_y[k] = Y[ListE1[i]];
         con_center_z[k] = Z[ListE1[i]];
-        // i have no idea, it's not pependicular to the edge is it
+        // it's not actually a normal but the edge vetor
+        // we just use the normal array
         con_normal_x[k] = X[ListE1[i]] - X[ListE2[i]];
         con_normal_y[k] = Y[ListE1[i]] - Y[ListE2[i]];
         con_normal_z[k] = Z[ListE1[i]] - Z[ListE2[i]];
@@ -625,7 +646,8 @@ void CalcTranses::ConstructConnectionList()
 
         for ( std::size_t n = i; n < j; n++ ) // Double check the formula
         {
-          // what the damn hell???
+          // Zvolumefactor is frac aperture
+          // normal norm here is the length of the edge
           ConArea[k][n - i] = ZVolumeFactor[CVZone[ConCV[k][n - i]]] *
               sqrt ( con_normal_x[k] * con_normal_x[k] +
                      con_normal_y[k] * con_normal_y[k] +
@@ -712,8 +734,10 @@ void CalcTranses::ComputeContinuityNode()
       {
         for (j=0; j<n_connection_elements[i]; j++)
         {
-          // in this case this projection is somewhat compliated
-          // probably it's a part of the star transformation?
+          // This code find an average projection of frac cv centers
+          //  onto the edge.
+          //  Note: it's not average by weight by rather by the number
+          //  of elements within connection
           ProjectionB( CV_center_x[ConCV[i][j]], CV_center_y[ConCV[i][j]], CV_center_z[ConCV[i][j]],
                        con_center_x[i], con_center_y[i], con_center_z[i],
                        con_normal_x[i], con_normal_y[i], con_normal_z[i],
@@ -1005,7 +1029,7 @@ void CalcTranses::ComputeTransmissibilityPart()
 
           ConTr[i][j] = ConArea[i][j] * ConPerm[i][j] * 1./fl;
           ConGeom[i][j] = ConArea[i][j] * ConMult[i][j] * 1./fl;
-          }
+        }
       }
     }
 }
@@ -1341,13 +1365,13 @@ void CalcTranses::writeOutputFiles(const std::string & output_path) const
     {
       if(connection_type[i]==1 || connection_type[i]==2)  // M-M, M-F /
       {
-        if(connection_type[i]==1)   // M-M ////////////////////////////
+        if(connection_type[i]==1)   // M-M //
         {
           // Con# connection_type i ai j aj -> Tij=ai*aj/(ai+aj)
           fprintf(poutfile,"%d\t%d\t%d\t%e\t%d\t%e\n", k,
                   connection_type[i], ConCV[i][0], ConTr[i][0], ConCV[i][1], ConTr[i][1]);
         }
-        if(connection_type[i]==2)   // M-F ////////////////////////////
+        if(connection_type[i]==2)   // M-F //
         {
           //Con# connection_type m am i ci ei ki ai=ci*ki/ei-> Tmi=am*ai/(am+ai)
         fprintf(poutfile,"%d\t%d\t%d\t%e\t%d\t%e\t%e\t%e\n", k,
@@ -1356,7 +1380,7 @@ void CalcTranses::writeOutputFiles(const std::string & output_path) const
         }
       k++;
       }
-      if(connection_type[i]==3) // F-F /////////////////////////////////////////////////
+      if(connection_type[i]==3) // F-F //
       {
         //Con# connection_type i ci ei ki j cj ej kj N n cn en kn
         //ai=ci*ki*ei aj=cj*kj*ej an=cn*kn*en
