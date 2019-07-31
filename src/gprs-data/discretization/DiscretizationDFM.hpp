@@ -41,7 +41,9 @@ class DiscretizationDFM : public DiscretizationBase
   // numbering shift of dfm CVs
   const size_t shift_dfm;
   // map cell index -> control volume
-  std::vector<std::size_t> mapping;
+  std::vector<std::size_t> cell_to_cv;
+  // vector of fracture apertures
+  std::vector<double> apertures;
 };
 
 
