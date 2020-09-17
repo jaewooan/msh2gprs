@@ -20,10 +20,12 @@ class WellManager
    * @param  config : config for wells
    * @param  data   : container for output data and reservoir properties
    * @param  dofs   : flow degrees of freedom
+   * @param  flow_method : method for modeling embedded fractures
    */
   WellManager(const std::vector<WellConfig> & config,
               SimData & data,
-              const discretization::DoFNumbering & dofs);
+              const discretization::DoFNumbering & dofs,
+              const EDFMMethod edfm_method);
   /**
    * Build wells discretization
    */
@@ -31,15 +33,21 @@ class WellManager
 
  protected:
   void setup_simple_well_(Well & well);
+  void setup_simple_well_fast_(Well & well);
   void setup_segmented_well_(Well & well);
   void compute_well_index_(Well & well);
-  angem::Point<3,double> get_bounding_box_(const std::size_t icell) const;
+  std::array<double,3> get_bounding_box_(const std::size_t icell) const;
+  bool setup_simple_well_matrix_(Well & well, size_t cell_index);
+  // returns false if no intersection found
+  void setup_simple_well_to_fracture_(Well & well, size_t cell_index);
+  void compute_WI_matrix_(Well & well, discretization::WellSegment & segment);
+  void compute_WI_frac_(Well & well, discretization::WellSegment & segment);
 
- private:
-  const std::vector<WellConfig> m_config;
-  SimData & m_data;
-  const discretization::DoFNumbering & m_dofs;
-  std::vector<std::vector<size_t>> m_well_connected_cells;
+  const std::vector<WellConfig> _config;
+  SimData & _data;
+  const discretization::DoFNumbering & _dofs;
+  const EDFMMethod _edfm_method;
+  // std::vector<std::vector<size_t>> _well_connected_cells;
 };
 
 }  // end namespace preprocessor

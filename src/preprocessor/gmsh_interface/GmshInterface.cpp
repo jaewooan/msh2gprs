@@ -2,6 +2,8 @@
 #include <cstdlib> // atoi
 #include <numeric>  // provides std;:iota
 #include <algorithm> // max_element
+#include <sstream>   // isstream
+#include <iterator>  // std::istream_iterator
 
 namespace gprs_data
 {
@@ -376,7 +378,7 @@ void GmshInterface::read_msh_v4_(std::fstream & mesh_file, mesh::Mesh & mesh)
     }
   }
 
-  std::cout << "n_cells = " << mesh.n_cells() << std::endl;
+  std::cout << "n_cells = " << mesh.n_active_cells() << std::endl;
 }
 
 size_t GmshInterface::get_n_vertices(const int element_type)

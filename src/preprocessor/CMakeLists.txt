@@ -4,7 +4,6 @@ ADD_LIBRARY(preprocessor
   Preprocessor.cpp
   parsers/YamlParser.cpp
   gmsh_interface/GmshInterface.cpp
-  gmsh_interface/FeValues.cpp
   gmsh_interface/element_types.cpp
   utils.cpp
   CellPropertyManager.cpp
@@ -13,6 +12,7 @@ ADD_LIBRARY(preprocessor
   BoundaryConditionManager.cpp
   bc_expressions/location_functions.cpp
   bc_expressions/value_functions.cpp
+  property_expressions/value_functions.cpp
   WellManager.cpp
   Well.cpp
   discretization/flow/DiscretizationBase.cpp
@@ -28,6 +28,9 @@ ADD_LIBRARY(preprocessor
   MultiScaleDataMech.cpp
   GridEntityNumberingManager.cpp
   UnionFind.cpp
+  intersections/GridIntersectionSearcher.cpp
+  intersections/UniformCartesianGrid.cpp
+  intersections/Mapper.cpp
   discretization/mechanics/DiscretizationFEM.cpp
   discretization/mechanics/PolyhedralElementBase.cpp
   discretization/mechanics/PolyhedralElementMSRSB.cpp
@@ -40,8 +43,20 @@ ADD_LIBRARY(preprocessor
   discretization/mechanics/FeValuesTetrahedron.cpp
   discretization/mechanics/FeValuesHexahedron.cpp
   discretization/mechanics/FeValuesQuadrangle.cpp
-  discretization/mechanics/PFEM_integration/IntegrationRuleFacesAverage.cpp
-  discretization/mechanics/PFEM_integration/IntegrationRuleFacesFractures.cpp
+  discretization/mechanics/PFEM_integration/TributaryRegion3dBase.cpp
+  discretization/mechanics/PFEM_integration/TributaryRegion3dFaces.cpp
+  discretization/mechanics/PFEM_integration/TributaryRegion3dVertices.cpp
+  discretization/mechanics/PFEM_integration/IntegrationRule3dFull.cpp
+  discretization/mechanics/PFEM_integration/TributaryRegion2dFaces.cpp
+  discretization/mechanics/PFEM_integration/TributaryRegion2dVertices.cpp
+  discretization/mechanics/PFEM_integration/IntegrationRule3dAverage.cpp
+  discretization/mechanics/PFEM_integration/IntegrationRule2dAverage.cpp
+  discretization/mechanics/PFEM_integration/IntegrationRule2dPointwise.cpp
+  discretization/mechanics/PFEM_integration/IntegrationRule2dFull.cpp
+  discretization/mechanics/PFEM_integration/IntegrationRuleFractureAverage.cpp
+  discretization/mechanics/PFEM_integration/IntegrationRuleFractureFull.cpp
+  discretization/mechanics/PFEM_integration/IntegrationRule3dPointwise.cpp
+  discretization/mechanics/PFEM_integration/FaceSorter.cpp
 )
 
 SET_TARGET_PROPERTIES (

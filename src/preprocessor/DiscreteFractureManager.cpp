@@ -52,6 +52,7 @@ void DiscreteFractureManager::distribute_properties()
         f.coupled = config.coupled;
         f.aperture = config.aperture;
         f.conductivity = config.conductivity;
+        f.region = config.region;
         // compute custom data as weighted average of the bounding cells
         const auto cells = face->neighbors();
         const auto cell1 = *cells[0];
@@ -90,7 +91,7 @@ void DiscreteFractureManager::distribute_properties()
           const size_t key = m_data.output_flow_properties[j];
           f.custom_flow_data[j] +=
               (m_data.cell_properties[key][cell1.index()] * v1 +
-               m_data.cell_properties[key][cell2.index()] * v2 ) / ( v2 + v2 ) ;
+               m_data.cell_properties[key][cell2.index()] * v2 ) / ( v1 + v2 ) ;
         }
         m_data.dfm_faces.insert({face->index(), std::move(f)});
       }

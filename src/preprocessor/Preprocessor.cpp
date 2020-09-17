@@ -1,6 +1,7 @@
 #include "Preprocessor.hpp"
 #include "parsers/YamlParser.hpp"
 #include "gmsh_interface/GmshInterface.hpp"
+#include "mesh/CartesianMeshBuilder.hpp"
 #include "mesh/io/VTKReader.hpp"
 #include "BoundaryConditionManager.hpp"
 #include "discretization/mechanics/DiscretizationFEM.hpp"
@@ -14,6 +15,7 @@
 #include "OutputDataVTK.hpp"
 #include "OutputDataGPRS.hpp"
 #include "OutputDataPostprocessor.hpp"
+#include "logger/Logger.hpp"
 #include <string>
 
 namespace gprs_data {
@@ -21,23 +23,42 @@ namespace gprs_data {
 Preprocessor::Preprocessor(const Path config_file_path)
 {
   // read configuration file
+  logging::log() << "reading config file: " << config_file_path << std::endl;
   read_config_file_(config_file_path);
+  logging::log() << "finished reading config" << std::endl;
   // infer grid file path
   const Path config_dir_path = config_file_path.parent_path();
-  const Path grid_file_path = config_dir_path / config.mesh_file;
-  read_mesh_file_(grid_file_path);
+  setup_grid_(config_dir_path);
   m_output_dir = config_dir_path / config.output_dir;
+}
+
+void Preprocessor::setup_grid_(const Path config_dir_path)
+{
+  if (config.mesh_config.type == MeshType::file)
+  {
+    const Path grid_file_path = config_dir_path / config.mesh_config.file;
+    read_mesh_file_(grid_file_path);
+  }
+  else if (config.mesh_config.type == MeshType::cartesian)
+  {
+    logging::log() << "Building Cartesian grid";
+    data.grid = mesh::CartesianMeshBuilder(config.mesh_config.cartesian);
+  }
+  else throw std::invalid_argument("Invalid mesh format");
 }
 
 void Preprocessor::run()
 {
   // property manager for grid with split cells (due to edfm splitting)
   pm_property_mgr = std::make_shared<CellPropertyManager>(config.cell_properties, config.domains, data);
-  std::cout << "Generating properties" << std::endl;
+  logging::log() << "Generating properties" << std::endl;
   pm_property_mgr->generate_properties();
 
+  logging::log() << "Initializing grid searcher" << std::endl;
+  data.grid_searcher = std::make_unique<GridIntersectionSearcher>(data.grid);
+
   // create discrete fracture manager
-  std::cout << "Initializing Fracture managers" << std::endl;
+  logging::log() << "Initializing Fracture managers" << std::endl;
   pm_dfm_mgr = std::make_shared<DiscreteFractureManager>(config.discrete_fractures, data);
   pm_edfm_mgr = std::make_shared<EmbeddedFractureManager>(config.embedded_fractures, config.edfm_method,
                                                           config.edfm_min_dist_to_node, data);
@@ -46,12 +67,14 @@ void Preprocessor::run()
   data.geomechanics_grid = data.grid;
 
   /* Split cells due to edfm intersection */
-  std::cout << "Splitting cells..." << std::flush;
+  logging::important() << "Splitting cells..." << std::flush;
   pm_edfm_mgr->split_cells();
-  std::cout << "OK" << std::endl << std::flush;
+  logging::important() << "Finished splitting cells" << std::endl << std::flush;
 
-  std::cout << "building flow discretization" << std::endl;
+  logging::important() << "Building flow discretization" << "\n";
   build_flow_discretization_();
+  logging::important() << "Finished flow discretization" << std::endl;
+
 
   // build edfm grid for vtk output
   // pm_edfm_mgr->build_edfm_grid(*data.flow_numbering);
@@ -84,37 +107,37 @@ void Preprocessor::create_output_dir_()
 {
   if (filesystem::exists(m_output_dir))
   {
-    std::cout << "cleaning directory " << m_output_dir << std::endl;
+    logging::debug() << "cleaning directory " << m_output_dir << std::endl;
     filesystem::remove_all(m_output_dir);
   }
-  std::cout << "creating directory " << m_output_dir << std::endl;
+  logging::debug() << "creating directory " << m_output_dir << std::endl;
   filesystem::create_directory(m_output_dir);
 }
 
 void Preprocessor::write_output_()
 {
-  std::cout << "Write Output data\n";
+  logging::log() << "Write Output data\n";
   create_output_dir_();
   for (auto format : config.output_formats)
   {
     switch (format) {
       case OutputFormat::gprs :
         {
-          std::cout << "Output gprs format" << std::endl;
+          logging::log() << "Output gprs format" << std::endl;
           gprs_data::OutputDataGPRS output_data(data, config.gprs_output);
           output_data.write_output(m_output_dir);
           break;
         }
         case OutputFormat::vtk :
           {
-            std::cout << "Output vtk format" << std::endl;
+            logging::log() << "Output vtk format" << std::endl;
             gprs_data::OutputDataVTK output_data(data, config.vtk_config);
             output_data.write_output(m_output_dir);
             break;
           }
         case OutputFormat::postprocessor :
           {
-            std::cout << "Output postprocessor format" << std::endl;
+            logging::log() << "Output postprocessor format" << std::endl;
             gprs_data::OutputDataPostprocessor output_data(data, config,
                                                            *data.flow_numbering,
                                                            m_output_dir);
@@ -128,14 +151,13 @@ void Preprocessor::read_config_file_(const Path config_file_path)
 {
   if (!filesystem::exists(config_file_path))
   {
-    const std::string error_msg =
-        "config file does not exist: " +
-        std::string(filesystem::absolute(config_file_path));
+    const std::string error_msg = "config file does not exist: " +
+                                  std::string(filesystem::absolute(config_file_path));
     throw std::invalid_argument(error_msg);
   }
 
-  std::cout << "reading ";
-  std::cout << filesystem::absolute(config_file_path) << std::endl;
+  logging::important() << "Reading ";
+  logging::important() << filesystem::absolute(config_file_path) << std::endl;
 
   const std::string fname = config_file_path.filename();
   const std::size_t str_len = fname.size();
@@ -147,7 +169,7 @@ void Preprocessor::read_config_file_(const Path config_file_path)
   }
   else
   {
-    std::cout << "Only .yaml configuration files are supported" << std::endl;
+    logging::warning() << "Only .yaml configuration files are supported" << std::endl;
     throw std::invalid_argument("File type not supported");
   }
 }
@@ -161,14 +183,14 @@ void Preprocessor::read_mesh_file_(const Path mesh_file_path)
     throw std::invalid_argument(msg);
   }
 
-  std::cout << "reading " << filesystem::absolute(mesh_file_path) << std::endl;
+  logging::important() << "Reading mesh file: " << filesystem::absolute(mesh_file_path) << std::endl;
 
   // check filetype
   const std::string fname = mesh_file_path.filename();
   const std::size_t str_len = fname.size();
   const std::string extension = fname.substr(str_len - 3, str_len);
 
-  std::cout << "extension:" << extension << std::endl;
+  logging::debug() << "extension: " << extension << std::endl;
   if (extension == "msh")
     GmshInterface::read_msh(filesystem::absolute(mesh_file_path), data.grid);
   else if (extension == "vtk")
@@ -221,27 +243,25 @@ void Preprocessor::build_flow_discretization_()
   else
     data.flow_numbering = p_unsplit_dofs;
 
-  std::cout << "build discr" << std::endl;
+  logging::debug() << "invoke discretization class" << std::endl;
   discr_edfm.build();
 
   // setup wells
   if (!config.wells.empty())
   {
-    std::cout << "setup wells" << std::endl;
-    WellManager well_mgr(config.wells, data, *data.flow_numbering);
+    logging::log() << "setup wells" << std::endl;
+    WellManager well_mgr(config.wells, data, *data.flow_numbering, config.edfm_method);
     well_mgr.setup();
   }
 
   // used for coupling later on
   if ( config.edfm_method != EDFMMethod::compartmental )
     pm_dfm_mgr->distribute_properties();
-
-  std::cout << "done flow discretization" << std::endl;
 }
 
 void Preprocessor::build_geomechanics_discretization_()
 {
-  if (config.fem.method == strong_discontinuity)
+  if (config.fem.method == FEMMethod::strong_discontinuity)
   {
     // generate geomechanics sda properties
     pm_edfm_mgr->distribute_mechanical_properties();
@@ -253,7 +273,6 @@ void Preprocessor::build_geomechanics_discretization_()
   {
     multiscale::MultiScaleDataMech ms_handler(data.geomechanics_grid, config.n_multiscale_blocks);
     ms_handler.build_data();
-
     ms_handler.fill_output_model(data.ms_mech_data);
   }
 
@@ -267,28 +286,42 @@ void Preprocessor::build_geomechanics_discretization_()
     p_frac_mgr = pm_cedfm_mgr;
   }
 
-  dfm_markers = p_frac_mgr->get_face_markers();
-
-  std::cout << "build FEM discretization" << std::endl;
-  discretization::DiscretizationFEM fem_discr(data.geomechanics_grid, config.fem, dfm_markers);
-  data.fe_cell_data = fem_discr.get_cell_data();
-  data.fe_face_data = fem_discr.get_face_data();
-  data.fe_frac_data = fem_discr.get_fracture_data();
+  // renumber nodes of some grid faces
+  // this is needed for AD-GPRS DFM fractures
+  for (auto face = data.geomechanics_grid.begin_active_faces(); face != data.geomechanics_grid.end_active_faces(); ++face)
+  {
+    if ( face->normal().dot(face->center() - face->neighbors()[0]->center()) > 0 )
+    {
+      mesh::Face & nc_face = const_cast<mesh::Face&>(*face);
+      auto & verts = nc_face.vertices();
+      std::reverse(verts.begin(), verts.end());
+    }
+  }
 
   GridEntityNumberingManager mech_numbering_mgr(data.geomechanics_grid);
-  data.mech_numbering = std::shared_ptr<discretization::DoFNumbering>
-      (mech_numbering_mgr.get_numbering());
-
-  // std::cout << "data.mech_numbering(653) = " << data.mech_numbering->cell_dof(653) << std::endl;
-  // std::cout << "data.mech_numbering(704) = " << data.mech_numbering->cell_dof(704) << std::endl;
-  // exit(0);
+  data.mech_numbering = std::shared_ptr<discretization::DoFNumbering>(mech_numbering_mgr.get_numbering());
+  // for (auto cell = data.geomechanics_grid.begin_active_cells(); cell != data.geomechanics_grid.end_active_cells(); ++cell)
+  //   if (data.mech_numbering->cell_dof(cell->index()) == 750)
+  //   {
+  //     std::cout << "yay " << cell->index() << " " << data.mech_numbering->cell_dof(cell->index()) << std::endl;
+  //     exit(0);
+  //   }
 
   // split geomechanics DFM faces
-  std::cout << "splitting faces of DFM fractures" << std::endl;
+  logging::log() << "Splitting faces of DFM fractures" << std::endl;
   p_frac_mgr->split_faces(data.geomechanics_grid);
 
   // build mechanics boundary conditions
+  logging::log() << "Building mechanics boundary conditions" << std::endl;
   BoundaryConditionManager bc_mgr(config.bc_faces, config.bc_nodes, data);
+
+  logging::log() << "Building FEM discretization" << std::endl;
+  dfm_markers = p_frac_mgr->get_face_markers();
+  discretization::DiscretizationFEM fem_discr(data.geomechanics_grid, config.fem, dfm_markers,
+                                              bc_mgr.get_neumann_face_markers());
+  data.fe_cell_data = fem_discr.get_cell_data();
+  data.fe_face_data = fem_discr.get_face_data();
+  data.fe_frac_data = fem_discr.get_fracture_data();
 }
 
 

@@ -1,7 +1,7 @@
 #include "OutputDataGPRS.hpp"
-#include "VTKWriter.hpp"
+#include "VTKWriter.hpp"     // provides IO::VTKWriter
+#include "logger/Logger.hpp"  // provides logging::log
 
-#include <sys/stat.h>
 
 namespace gprs_data
 {
@@ -42,10 +42,7 @@ void OutputDataGPRS::write_output(const std::string & output_path) const
     save_discrete_fracture_properties_(output_path + "/" + _config.discrete_frac_file);
 
   if (!_data.wells.empty())
-  {
-    std::cout << "save wells" << std::endl;
     saveWells(output_path + "/" + _config.wells_file);
-  }
 
   // // multiscale
   // if (data.ms_flow_data.partitioning.size() > 0)
@@ -59,14 +56,14 @@ void OutputDataGPRS::save_flow_data_(const std::string cv_file, const std::strin
   {  // Write cell data
     std::ofstream out;
     out.open(cv_file.c_str());
-    std::cout << "saving " << cv_file << std::endl;
+    logging::log() << "saving flow Control Volume data: " << cv_file << std::endl;
     save_control_volume_data_(out);
     out.close();
   }
   {  // write face data
     std::ofstream out;
     out.open(con_file.c_str());
-    std::cout << "saving " << con_file << std::endl;
+    logging::log() << "saving flow Connection data: " << con_file << std::endl;
     save_trans_data_(out);
     save_trans_update_formulas_(out);
     // write transmissibility update formulas
@@ -192,7 +189,7 @@ void OutputDataGPRS::save_trans_update_formulas_(std::ofstream & out) const
 void OutputDataGPRS::save_geometry_() const
 {
   const std::string outstring = _output_path + "/" + _config.geometry_file;
-  std::cout << "saving " << outstring << std::endl;
+  logging::log() << "saving mechaanics geometry: " << outstring << std::endl;
 
   // gprs output
   std::ofstream out;
@@ -217,7 +214,6 @@ void OutputDataGPRS::save_geometry_() const
 
   // write vertex coordinates
   out.precision(6);
-  // std::cout << "write all coordinates\n";
   out << "GMNODE_COORDS" << "\n";
   if (_data.grid_vertices_after_face_split.empty())
   {
@@ -258,16 +254,11 @@ void OutputDataGPRS::save_geometry_() const
   out << "GMFACE_GMCELLS" << std::endl;
   for (auto face=grid.begin_active_faces(); face!=grid.end_active_faces(); ++face)
   {
-      const std::vector<const mesh::Cell*> neighbors = face->neighbors();
-      out << neighbors.size() << "\t";
-      if (_data.dfm_faces.find(face->index()) != _data.dfm_faces.end())
-      {
-        assert( neighbors.size() == 2 );
-      }
-
-      for (const mesh::Cell* neighbor : neighbors)
-        out << _data.mech_numbering->cell_dof(neighbor->index()) + 1 << "\t";
-      out << "\n";
+    const std::vector<const mesh::Cell*> neighbors = face->neighbors();
+    out << neighbors.size() << "\t";
+    for (const mesh::Cell* neighbor : neighbors)
+      out << _data.mech_numbering->cell_dof(neighbor->index()) + 1 << "\t";
+    out << "\n";
   }
   out << "/\n\n";
 }
@@ -278,7 +269,7 @@ void OutputDataGPRS::save_geomechanics_keywords_() const
   // write domain properties
   std::ofstream out;
   const std::string file_name = _output_path + "/" + _config.mechanics_kwd_file;
-  std::cout << "saving " << file_name << std::endl;
+  logging::log() << "saving geomechanics keywords: " << file_name << std::endl;
   out.open(file_name.c_str());
 
   const auto & grid = _data.geomechanics_grid;
@@ -304,7 +295,7 @@ void OutputDataGPRS::save_geomechanics_keywords_() const
 
 void OutputDataGPRS::save_embedded_fractures_(const std::string file_name) const
 {
-  std::cout << "saving " << file_name << std::endl;
+  logging::log() << "saving mech embedded fracture data: " << file_name << std::endl;
   std::ofstream out;
   out.open(file_name.c_str());
 
@@ -354,7 +345,7 @@ void OutputDataGPRS::save_embedded_fractures_(const std::string file_name) const
   // defined with "GMCONTACT_NORMAL_PROPS"
   out << "GM_EFRAC_REGION" << std::endl;
   for (const auto & frac : _data.sda_data)
-    out << 1 << "\n"; // Currently, set all fractures' region as 1.
+    out << frac.region + 1 << "\n";
   out << "/\n\n";
 
   // coordinates of a point in frac plane for each SDA cell
@@ -412,7 +403,7 @@ void OutputDataGPRS::save_embedded_fractures_(const std::string file_name) const
 void OutputDataGPRS::save_geomechanics_boundary_conditions_() const
 {
   const std::string file_name = _output_path + "/" + _config.bcond_file;
-  std::cout << "saving " << file_name << std::endl;
+  logging::log() << "saving geomech boundary conditions: " << file_name << std::endl;
 
   std::ofstream out(file_name);
   // save dirichlet BC's
@@ -473,13 +464,11 @@ void OutputDataGPRS::save_dirichlet_component_vertices(const size_t comp,
 
 void OutputDataGPRS::save_discrete_fracture_properties_(const std::string file_name) const
 {
-  // std::cout << "write discrete fracs" << std::endl;
-
   std::ofstream out;
   out.open(file_name.c_str());
-  std::cout << "saving " << file_name << std::endl;
+  logging::log() << "saving geomech DFM file: " << file_name << std::endl;
 
-  std::cout << "write all fractured faces\n";
+  logging::debug() << "write all fractured faces\n";
   out << "GMFACE_FRACTURE_TO_FLOWCELL" << std::endl;
   for (const auto & it : _data.dfm_faces)
   {
@@ -498,7 +487,7 @@ void OutputDataGPRS::save_discrete_fracture_properties_(const std::string file_n
 
   out << "GMFACE_FRACTURE_REGION" << std::endl;
   for (const auto & it : _data.dfm_faces)
-    out << 1 << "\n";
+    out << it.second.region + 1 << "\n";
   out << "/\n\n";
 
   out << "GMFACE_FRACTURE_GROUP" << std::endl;
@@ -512,6 +501,7 @@ void OutputDataGPRS::save_discrete_fracture_properties_(const std::string file_n
 
 void OutputDataGPRS::saveWells(const std::string file_name) const
 {
+  logging::log() << "Save wells: " << file_name << std::endl;
   std::ofstream out;
   out.open(file_name.c_str());
 
@@ -519,9 +509,8 @@ void OutputDataGPRS::saveWells(const std::string file_name) const
   for (const auto & well : _data.wells)
   {
     out << well.name << "\tGROUP1\t";
-    // connected volume + j + k empty
-    assert( !well.connected_volumes.empty() );
-    out << well.connected_volumes[0] << " 1 1 ";
+    assert( !well.segment_data.empty() && "Well does not contain connection data" );
+    out << well.segment_data.front().dof << " 1 ";
     // reference depth
     out << -well.reference_depth << " /" << std::endl;
   }
@@ -531,14 +520,14 @@ void OutputDataGPRS::saveWells(const std::string file_name) const
   out << "-- name\tcell\tidk\tidk\tidk\topen\tidk\tWI\trad" << std::endl;
   for (const auto & well : _data.wells)
   {
-    for (std::size_t i=0; i<well.connected_volumes.size(); ++i)
+    // for (std::size_t i=0; i<well.connected_volumes.size(); ++i)
+    for (const auto & segment : well.segment_data)
     {
       out << well.name << "\t";
-      assert( !well.connected_volumes.empty() );
-      out << well.connected_volumes[i] + 1 << "\t";
+      out << segment.dof + 1 << "\t";
       // j, k1:k2 open sat_table_number
       out << "1\t1\t1\tOPEN\t1*\t";
-      out << well.indices[i] * transmissibility_conversion_factor << "\t";
+      out << segment.wi * transmissibility_conversion_factor << "\t";
       out << 2*well.radius << "\t";  // adgprs needs well diameter
       out << "/" << std::endl;
     }
@@ -604,7 +593,6 @@ void OutputDataGPRS::saveMechMultiScaleData(const std::string file_name)
 
 void OutputDataGPRS::save_geomechanics_data_() const
 {
-  // std::cout << "save geometry" << std::endl;
   save_geometry_();
   // save computed element data: shape functions and gradients, gauss weights, JxW
   save_fem_data_();
@@ -722,7 +710,7 @@ void OutputDataGPRS::save_fem_data_() const
     return;
 
   const std::string file_name = _output_path + "/" + _config.fem_file;
-  std::cout << "saving " << file_name << std::endl;
+  logging::log() << "saving FEM data: " << file_name << std::endl;
   std::ofstream out;
   out.open(file_name.c_str());
   // save cell data
@@ -823,9 +811,11 @@ void OutputDataGPRS::save_fem_data_() const
     if (!face.points.empty())
     {
       for (const auto &point : face.points)
+      {
         for (const double value : point.values)
           out << value << "\t";
-      out << "\n";
+        out << "\n";
+      }
     }
   out << "/\n\n";
 
@@ -865,6 +855,7 @@ void OutputDataGPRS::save_fem_data_() const
       auto & data = _data.fe_frac_data[iface];
       if (data[0].element_index == neighbors[0]->index())
       {
+        assert( data[0].points.size() == data[1].points.size() );
         export_point_grads(out, data[0]);
         export_point_grads(out, data[1]);
       }

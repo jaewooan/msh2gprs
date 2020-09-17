@@ -38,13 +38,14 @@ class PolyhedralElementDirect : public PolyhedralElementBase
    *
    * Input:
    * \param[in] cell : grid cell to be discretized
+   * \param[in] parent_grid : grid the discretized cell belongs to
    * \param[in] config : constains information about the type and order of refinement
    * \param[in] update_face_values : update face shape functions within face quadrature points
    * \param[in] update_fracture_values : update cell shape function in face quadrature points
    */
-  PolyhedralElementDirect(const mesh::Cell & cell, const FiniteElementConfig & config,
-                          const bool update_face_values = true,
-                          const bool update_fracture_values = true);
+  PolyhedralElementDirect(const mesh::Cell & cell,
+                          const mesh::Mesh & parent_grid,
+                          const FiniteElementConfig & config);
   // get vector of cell integration points (where cell_data is defined)
   const std::vector<angem::Point<3,double>> & get_cell_integration_points() const {return _cell_gauss_points;}
   //  purely debugging purposes
@@ -62,19 +63,14 @@ class PolyhedralElementDirect : public PolyhedralElementBase
   void impose_bc_on_face_system_(const size_t parent_vertex,
                                  const DoFNumbering & vertex_dofs,
                                  Eigen::SparseMatrix<double,Eigen::RowMajor> & face_system_matrix,
-                                 Eigen::VectorXd & rhs);
-  // impose bc only on rhs vector but not matrix (face system)
-  void impose_bc_face_rhs_(const size_t parent_vertex,
-                           const DoFNumbering & vertex_dofs,
-                           Eigen::VectorXd & rhs);
+                                 Eigen::VectorXd & rhs,
+                                 const bool impose_on_matrix = true);
   void build_edge_boundary_conditions_(const std::vector<size_t> & parent_face_vertices,
                                        const std::vector<size_t> & faces);
   // find out which vertices reside on parent edges and compute the dirichlet values for them
   void build_edge_boundary_conditions_();
   // map element_grid vertices to parent cell faces
   std::vector<std::vector<size_t>> map_vertices_to_parent_faces_();
-  // map parent cell vertices to parent cell faces
-  std::vector<std::list<size_t>> map_parent_vertices_to_parent_faces_();
   // put the face boundary problem solution in to the container for the boundary conditions of
   // the 3D domain system
   void append_face_solution_(const size_t pv, const Eigen::VectorXd & solution,
@@ -96,7 +92,6 @@ class PolyhedralElementDirect : public PolyhedralElementBase
   std::vector<std::vector<double>> _support_edge_values;       // edge dirichlet values for each parent vertex
   std::vector<std::vector<size_t>> _support_boundary_vertices; // face vertices for each parent vertex
   std::vector<std::vector<double>> _support_boundary_values;   // face dirichlet values for each parent vertex
-  // Eigen::SparseMatrix<double,Eigen::ColMajor> _system_matrix;  // 3d cell system matrix with no BC's
   Eigen::SparseMatrix<double,Eigen::RowMajor> _system_matrix;  // 3d cell system matrix with no BC's
 };
 

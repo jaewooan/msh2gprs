@@ -2,12 +2,13 @@
 
 #include "angem/Polygon.hpp"
 #include "config/FiniteElementConfig.hpp"
+#include "config/MeshConfig.hpp"
 
 #include <map>
 #include <memory> // shared / unique_ptr
 
 
-enum MSPartitioning : int
+enum class MSPartitioning : int
 {
   no_partitioning  = 0,
   method_msrsb     = 1,  // igor's inspired by olav's paper, doesn't work for mech
@@ -15,7 +16,7 @@ enum MSPartitioning : int
   method_mechanics = 3  // igor's mechanics method
 };
 
-enum OutputFormat
+enum class OutputFormat
 {
   gprs, vtk, postprocessor
 };
@@ -39,7 +40,7 @@ struct DomainConfig
 };
 
 
-enum BoundaryConditionType : int
+enum class BoundaryConditionType : int
 {
   dirichlet = 1, neumann = 2, constraint = 3  // penalty type forces all disp to be the same
 };
@@ -56,7 +57,7 @@ struct BCConfig
 };
 
 
-enum EDFMMethod
+enum class EDFMMethod
 {
   simple,      // old and frankly shitty but default by Li and Lee 2008
   projection,  // pEDFM by Tene 2017
@@ -73,6 +74,7 @@ struct EmbeddedFractureConfig
   double aperture = 1e-3;   // hydraulic aperture of the fracture [m]
   double conductivity = 10; // hydraulic conductivity of dfm fracture [m·md]
   bool coupled = true;      // whether to couple with geomechanics
+  size_t region = 0;
 };
 
 
@@ -82,6 +84,7 @@ struct DiscreteFractureConfig
   double conductivity = 10;
   double aperture = 1e-3;
   bool coupled = true;  // whether to couple with geomechanics
+  size_t region = 0;    // property table index
 };
 
 
@@ -91,6 +94,8 @@ struct WellConfig
   double radius;
   std::vector<angem::Point<3,double>> coordinates;
   std::vector<bool> perforated;
+  // use this flag only to force connecting the well to fractures in 2D
+  bool force_connect_fractures = false;
 };
 
 struct CellPropertyConfig
@@ -158,8 +163,8 @@ struct PreprocessorConfig
 
   // multiscale
   size_t n_multiscale_blocks;
-  int multiscale_flow = MSPartitioning::no_partitioning;      // 0 means don't do anything
-  int multiscale_mechanics = MSPartitioning::no_partitioning; // 0 means don't do anything
+  MSPartitioning multiscale_flow = MSPartitioning::no_partitioning;      // 0 means don't do anything
+  MSPartitioning multiscale_mechanics = MSPartitioning::no_partitioning; // 0 means don't do anything
 
   // output format
   std::vector<OutputFormat> output_formats = {OutputFormat::gprs,
@@ -167,7 +172,8 @@ struct PreprocessorConfig
                                               OutputFormat::postprocessor};
 
   // the name of gmsh grid file
-  std::string mesh_file;
+  MeshConfig mesh_config;
+  // std::string mesh_file;
   // output file names
   std::string output_dir            = "output";
   // GPRS format

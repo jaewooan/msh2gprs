@@ -27,7 +27,12 @@ void YamlParser::parse_file(const std::string & fname)
     std::cout << "Reading section: " << key  << std::endl;
 
     if (key == "Mesh file")
-      config.mesh_file = it->second.as<std::string>();
+    {
+      config.mesh_config.type = MeshType::file;
+      config.mesh_config.file = it->second.as<std::string>();
+    }
+    else if (key == "Mesh")
+      section_mesh(it->second);
     else if (key == "Domain Flow Properties")
       section_domain_props(it->second, ExpressionDomainType::flow);
     else if (key == "Domain Mechanical Properties")
@@ -88,6 +93,20 @@ void YamlParser::embedded_fracs(const YAML::Node & node)
         config.fem.subdivision_method = PolyhedralFEMSubdivision::refinement;
       else throw std::invalid_argument("Subdivision method unknown" + values.first);
       config.fem.order = values.second;
+    }
+    else if (key == "integration_rule")
+    {
+      const auto str_rule = it->second.as<std::string>();
+      if (str_rule == "full")
+        config.fem.integration_rule = PolyhedronIntegrationRule::Full;
+      else if (str_rule == "faces_average")
+        config.fem.integration_rule = PolyhedronIntegrationRule::FacesAverage;
+      else if (str_rule == "vertices_average")
+        config.fem.integration_rule = PolyhedronIntegrationRule::VerticesAverage;
+      else if (str_rule == "faces_pointwise")
+        config.fem.integration_rule = PolyhedronIntegrationRule::FacesPointwise;
+      else if (str_rule == "vertices_pointwise")
+        config.fem.integration_rule = PolyhedronIntegrationRule::VerticesPointwise;
     }
     else if (key == "fracture")
     {
@@ -159,6 +178,7 @@ void YamlParser::embedded_fracture(const YAML::Node       & node,
   double conductivity = conf.conductivity;
   std::size_t n1 = conf.n1;
   std::size_t n2 = conf.n2;
+  size_t region = conf.region;
 
   for (auto it = node.begin(); it!=node.end(); ++it)
   {
@@ -189,6 +209,8 @@ void YamlParser::embedded_fracture(const YAML::Node       & node,
       aperture = it->second.as<double>();
     else if (key == "conductivity")
       conductivity = it->second.as<double>();
+    else if (key == "region")
+      region = it->second.as<size_t>();
     else if (key == "remesh")
     {
       std::vector<std::size_t> remesh_pars =
@@ -206,8 +228,10 @@ void YamlParser::embedded_fracture(const YAML::Node       & node,
     else if (key == "center")
       center = it->second.as<std::vector<double>>();
     else
-      std::cout << "\t\tattribute " << key
-                << " unknown: skipping" << std::endl;
+    {
+      std::cout << "\t\tattribute " << key << " unknown:" << std::endl;
+      throw std::invalid_argument("attribute unknown");
+    }
   }
 
   std::cout << "Making embedded fracture" << std::endl;
@@ -220,6 +244,7 @@ void YamlParser::embedded_fracture(const YAML::Node       & node,
   conf.aperture = aperture;
   conf.conductivity = conductivity;
   conf.n1 = n1; conf.n2 = n2;
+  conf.region = region;
 }
 
 void YamlParser::discrete_fracture(const YAML::Node       & node,
@@ -236,6 +261,8 @@ void YamlParser::discrete_fracture(const YAML::Node       & node,
       conf.conductivity = it->second.as<double>();
     else if (key == "label")
       conf.label = it->second.as<int>();
+    else if (key == "region")
+      conf.region = it->second.as<size_t>();
   }
 }
 
@@ -532,6 +559,8 @@ void YamlParser::read_well(const YAML::Node & node,
       well.name = it->second.as<std::string>();
     else if (key == "radius")
       well.radius = it->second.as<double>();
+    else if (key == "force_connect_fractures")
+      well.force_connect_fractures = it->second.as<bool>();
     else if (key == "nodes")
     {
       const std::string line = it->second.as<std::string>();
@@ -625,6 +654,53 @@ void YamlParser::section_multiscale(const YAML::Node & node)
     else
       std::cout << "\tSkipping unknown keyword" << std::endl;
   }
+}
+
+void YamlParser::section_mesh(const YAML::Node & node)
+{
+  auto & conf = config.mesh_config;
+  for (auto it = node.begin(); it!=node.end(); ++it)
+  {
+    const std::string key = it->first.as<std::string>();
+    std::cout << "\treading key " << key << std::endl;
+    if (key == "file")
+    {
+      conf.type = MeshType::file;
+      conf.file = it->second.as<std::string>();
+    }
+    else if (key == "cartesian")
+    {
+      conf.type = MeshType::cartesian;
+      subsection_cartesian_grid(it->second);
+    }
+    else throw std::invalid_argument("Unknown key " + key);
+  }
+}
+
+void YamlParser::subsection_cartesian_grid(const YAML::Node & node)
+{
+  auto & conf = config.mesh_config.cartesian;
+  std::array<size_t,3> dimens = {1, 1, 1};
+  angem::Point<3,double> origin = {0,0,0};
+  angem::Point<3,double> corner = {1,1,1};
+  for (auto it = node.begin(); it!=node.end(); ++it)
+  {
+    const std::string key = it->first.as<std::string>();
+    if (key == "dimens")
+      dimens = it->second.as<std::array<size_t,3>>();
+    else if (key == "origin")
+      origin = it->second.as<std::vector<double>>();
+    else if (key == "corner")
+      corner = it->second.as<std::vector<double>>();
+  }
+
+  const auto diff = corner - origin;
+  for (auto value : dimens)
+    if (value == 0) throw std::invalid_argument("Cartesian grid dimension must be > 0");
+  conf.dx.assign(dimens[0], diff[0] / dimens[0]);
+  conf.dy.assign(dimens[1], diff[1] / dimens[1]);
+  conf.dz.assign(dimens[2], diff[2] / dimens[2]);
+  conf.origin = origin;
 }
 
 }  // end namespace

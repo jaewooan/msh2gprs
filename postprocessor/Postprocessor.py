@@ -134,9 +134,12 @@ class Postprocessor:
             x = numpy_support.numpy_to_vtk(data[key].values[mapping])
             x.SetName(key)
             output.GetCellData().AddArray(x)
-        time = numpy_support.numpy_to_vtk([time])
-        time.SetName("TIME")
-        output.GetFieldData().AddArray(time)
+        # make time array the size of the n_cells; otherwise,
+        # I cannot plot selection vs real time
+        time_arr = numpy_support.numpy_to_vtk(time*np.ones(len( mapping )))
+        time_arr.SetName("Time_")
+        output.GetCellData().AddArray(time_arr)
+        # output.GetFieldData().AddArray(time_arr)
 
 
     def addMechDataToReader(self, reader, data, data_type="point"):
@@ -181,9 +184,11 @@ class Postprocessor:
 
     def readMechVTKData(self, fname):
         reader = self.matrix_mech_vtk_ouput_reader
-        fnum_str = "%09d"%(self.output_file_number)
         if (self.output_file_number == 0):
-            fnum_str = "%09d"%(self.output_file_number + 1)
+            fnum_str = "%09d"%(self.output_file_number)
+            # fnum_str = "%09d"%(self.output_file_number + 1)
+        else:
+            fnum_str = "%09d"%(self.output_file_number - 1)
 
         vtk_file_path = self.case_path + "/OUTPUT.vtk_output/" + fname + \
                         "." + fnum_str + ".vtk"

@@ -16,15 +16,22 @@ namespace discretization
 using Point = angem::Point<3,double>;
 
 DiscretizationFEM::DiscretizationFEM(const mesh::Mesh & grid, const FiniteElementConfig & config,
-                                     const std::vector<int> & fracture_face_markers)
-    : _grid(grid), _config( config ),
-      _fracture_face_markers(fracture_face_markers.begin(), fracture_face_markers.end())
+                                     const std::vector<int> & fracture_face_markers,
+                                     const std::vector<int> & neumann_face_markers)
+    : _grid(grid), _config( config )
 {
   #ifndef WITH_EIGEN
   throw std::runtime_error("Cannot use DFEM method without linking to Eigen");
   #endif
 
-  // analyze_cell_(_grid.cell(546));
+  for (const int marker : fracture_face_markers)
+    _fracture_face_orientation[marker] = {angem::Basis<3, double>(), false};
+  for (const int marker : neumann_face_markers)
+    _neumann_face_orientation[marker] = {angem::Basis<3, double>(), false};
+
+  // std::cout << "25263 " << _grid.n_cells() << std::endl;
+  // analyze_cell_(_grid.cell(19908));
+
   // if (_config.method != strong_discontinuity)
   // {
   //   auto cell = _grid.begin_active_cells();
@@ -34,14 +41,14 @@ DiscretizationFEM::DiscretizationFEM(const mesh::Mesh & grid, const FiniteElemen
   // }
 
   _face_data.resize( _grid.n_faces() );
-  _cell_data.resize( _grid.n_cells() );
+  _cell_data.resize( _grid.n_cells_total() );
   _frac_data.resize( _grid.n_faces() );
   logging::ProgressBar progress("Build Finite Elements", _grid.n_active_cells());
+  angem::Basis<3, double> face_basis;
   // std::cout << std::endl;
   size_t item = 0;
   for (auto cell = _grid.begin_active_cells(); cell != _grid.end_active_cells(); ++cell)
   {
-    // std::cout << item++ << " (" << _grid.n_active_cells() << ")"<< std::endl;
     progress.set_progress(item++);
 
     const std::unique_ptr<FiniteElementBase> p_discr = build_element(*cell);
@@ -50,22 +57,30 @@ DiscretizationFEM::DiscretizationFEM(const mesh::Mesh & grid, const FiniteElemen
     cell_fem_data.element_index = cell->index();
     _cell_data[cell->index()] = std::move(cell_fem_data);
 
-    std::vector<FiniteElementData> face_data = p_discr->get_face_data();
-    std::vector<FiniteElementData> frac_data = p_discr->get_fracture_data();
     size_t iface = 0;
     for ( const mesh::Face * face : cell->faces() )
     {
       const size_t face_index = face->index();
-      if ( _face_data[face->index()].points.empty() )
-      {
-        face_data[iface].element_index = face_index;
-       _face_data[face_index] = face_data[iface];
-      }
+      const bool is_fracture = _fracture_face_orientation.find( face->marker() ) !=
+                               _fracture_face_orientation.end();
+      const bool is_neumann = _neumann_face_orientation.find( face->marker() ) !=
+                              _neumann_face_orientation.end();
+      if (is_fracture)
+        face_basis = get_basis_(*face, _fracture_face_orientation.find(face->marker())->second);
+      else if (is_neumann)
+        face_basis = get_basis_(*face, _neumann_face_orientation.find(face->marker())->second);
 
-      if ( _fracture_face_markers.find( face->marker() ) != _fracture_face_markers.end() )
+      if (is_neumann || is_fracture)
+        if ( _face_data[face->index()].points.empty() )
         {
-          frac_data[iface].element_index = cell->index();
-          _frac_data[face_index].push_back(frac_data[iface]);
+          _face_data[face_index] = p_discr->get_face_data(iface, face_basis);
+          _face_data[face_index].element_index = face_index;
+        }
+
+      if (is_fracture)
+        {
+          _frac_data[face_index].push_back(p_discr->get_fracture_data(iface, face_basis));
+          _frac_data[face_index].back().element_index = cell->index();
         }
 
       iface++;
@@ -77,44 +92,30 @@ DiscretizationFEM::DiscretizationFEM(const mesh::Mesh & grid, const FiniteElemen
 
 void DiscretizationFEM::analyze_cell_(const mesh::Cell & cell)
 {
+  std::cout << "vertices: ";
+  for(auto v : cell.vertices())
+    std::cout << v << " ";
+  std::cout << std::endl;
+
+  std::cout << "faces:" << std::endl;
+  for (auto * f : cell.faces())
+  {
+    for (auto v : f->vertices())
+      std::cout << v << " ";
+    std::cout << std::endl;
+  }
+
   IO::VTKWriter::write_geometry(_grid, cell, "output/geometry-" + std::to_string(cell.index()) + ".vtk");
 
 #ifdef WITH_EIGEN
-  PolyhedralElementDirect de(cell, _config);
+  PolyhedralElementDirect de(cell, _grid, _config);
   // PolyhedralElementMSRSB de(cell, _config);
   de.save_shape_functions("output/shape_functions-" + std::to_string(cell.index())+ ".vtk");
-  exit(0);
+  de.debug_save_boundary_face_solution("output/face_solutions.vtk");
 
-  StandardFiniteElement fe(cell);
-  FiniteElementData an_data =  fe.get_cell_data();
   auto verts = cell.vertices();
-  std::cout << "+======COORDINATES" << std::endl;
-  // std::cout << "analytic" << std::endl;
-  // for (size_t q=0; q<an_data.points.size(); ++q)
-  // {
-  //   Point p (0,00,0);
-  //   for (size_t v=0; v<verts.size(); ++v)
-  //   {
-  //     p += _grid.vertex(verts[v]) * an_data.points[q].values[v];
-  //   }
-  //   std::cout << "p = " << p << std::endl;
-  // }
 
   auto data =  de.get_cell_data();
-  auto qpoints = de.get_cell_integration_points();
-  std::cout << "============================" << std::endl;
-  std::cout << "Recovery integration points:" << std::endl;
-  for (size_t q=0; q<data.points.size(); ++q)
-  {
-    Point p (0,00,0);
-    for (size_t v=0; v<verts.size(); ++v)
-    {
-      assert( data.points[q].values.size() == verts.size() );
-      p += _grid.vertex(verts[v]) * data.points[q].values[v];
-    }
-
-    std::cout << "diff = " << (p - qpoints[q]).norm()<< std::endl;
-  }
 
   std::cout << "============================" << std::endl;
   std::cout << "Weights:" << std::endl;
@@ -129,32 +130,29 @@ void DiscretizationFEM::analyze_cell_(const mesh::Cell & cell)
   std::cout << "weights sum = " << wsum << "  (should be " << data.center.weight << ")" << std::endl;
 
 
-  // std::cout << "============================" << std::endl;
-  // std::cout << "Values:" << std::endl;
-  // for (size_t q=0; q<data.points.size(); ++q)
-  // {
-  //   std::cout << q << "\n";
-  //   for (size_t v=0; v<verts.size(); ++v)
-  //   {
-  //     std::cout << data.points[q].values[v] << " "
-  //               << an_data.points[q].values[v] << " "
-  //               << std::fabs( (data.points[q].values[v] - an_data.points[q].values[v]) / an_data.points[q].values[v]  )
-  //               << std::endl;
-  //   }
-  // }
+  std::cout << "============================" << std::endl;
+  std::cout << "Values:" << std::endl;
+  for (size_t q=0; q<data.points.size(); ++q)
+  {
+    const double sum = std::accumulate(data.points[q].values.begin(),
+                                       data.points[q].values.end(), 0.0);
+    if (std::fabs(sum - 1.0) > 1e-10)
+    {
+      std::cout << "Error: q = " << q << " sum values = " << sum << std::endl;
+    }
+  }
 
   std::cout << "============================" << std::endl;
   std::cout << "Gradients:" << std::endl;
   for (size_t q=0; q<data.points.size(); ++q)
   {
-    std::cout << q << "\n";
-    for (size_t v=0; v<verts.size(); ++v)
-    {
-      std::cout <<  data.points[q].grads[v] << "\t";
-    }
-    std::cout << std::endl;
+    angem::Point<3,double> sum;
+    for (auto & p : data.points[q].grads)
+      sum += p;
+    std::cout << q << " " << sum << std::endl;
   }
 
+  exit(0);
 
   // std::cout << "======= shape functions ==========" << std::endl;
   // std::cout << "analytic" << std::endl;
@@ -216,51 +214,55 @@ void DiscretizationFEM::analyze_cell_(const mesh::Cell & cell)
 
 std::unique_ptr<FiniteElementBase> DiscretizationFEM::build_element(const mesh::Cell & cell)
 {
-  const bool need_face_values = true;
-  const bool need_fracture_values = has_fracture_face_(cell);
+  const bool need_fracture_values = false;
+  const bool need_face_values = false;
   std::unique_ptr<FiniteElementBase> p_discr;
   if (_config.method == FEMMethod::polyhedral_finite_element)
   {
 #ifdef WITH_EIGEN
-    if (_config.solver == direct || _config.solver == cg)
-      p_discr = std::make_unique<PolyhedralElementDirect>(cell, _config, need_face_values,
-                                                          need_fracture_values);
-    else if (_config.solver == msrsb)
-      p_discr = std::make_unique<PolyhedralElementMSRSB>(cell, _config);
+    if (_config.solver == SolverType::direct || _config.solver == SolverType::cg)
+      p_discr = std::make_unique<PolyhedralElementDirect>(cell, _grid, _config);
+    else if (_config.solver == SolverType::msrsb)
+      p_discr = std::make_unique<PolyhedralElementMSRSB>(cell, _grid, _config);
 #else
     throw std::runtime_error("Cannot use PDFEM method without linking to Eigen");
 #endif
 
   }
-  else if (_config.method == strong_discontinuity)
-    p_discr = std::make_unique<StandardFiniteElement>(cell, need_face_values, need_fracture_values);
-  else if (_config.method == mixed)
+  else if (_config.method == FEMMethod::strong_discontinuity)
+    p_discr = std::make_unique<StandardFiniteElement>(cell);
+  else if (_config.method == FEMMethod::mixed)
   {
     if (cell.vtk_id() == angem::GeneralPolyhedronID)
     {
 #ifdef WITH_EIGEN
-      if (_config.solver == direct || _config.solver == cg)
-        p_discr = std::make_unique<PolyhedralElementDirect>(cell, _config, need_face_values,
-                                                            need_fracture_values);
-      else if (_config.solver == msrsb)
-        p_discr = std::make_unique<PolyhedralElementMSRSB>(cell, _config);
+      if (_config.solver == SolverType::direct || _config.solver == SolverType::cg)
+        p_discr = std::make_unique<PolyhedralElementDirect>(cell, _grid, _config);
+      else if (_config.solver == SolverType::msrsb)
+        p_discr = std::make_unique<PolyhedralElementMSRSB>(cell, _grid, _config);
 #else
     throw std::runtime_error("Cannot use PFEM method without linking to Eigen");
 #endif
     }
     else
-      p_discr = std::make_unique<StandardFiniteElement>(cell, need_face_values, need_fracture_values);
+      p_discr = std::make_unique<StandardFiniteElement>(cell);
   }
 
   return p_discr;
 }
 
-bool DiscretizationFEM::has_fracture_face_(const mesh::Cell & cell)
+const angem::Basis<3, double> &
+DiscretizationFEM::get_basis_(const mesh::Face & face,
+                              FaceOrientation &orientation) noexcept
 {
-  for (const mesh::Face * face : cell.faces() )
-    if ( _fracture_face_markers.find( face->marker() ) != _fracture_face_markers.end()  )
-      return true;
-  return false;
+  if (!orientation.assigned)
+  {
+    orientation.basis = face.polygon().plane().get_basis();
+    orientation.assigned = true;
+  }
+
+  return orientation.basis;
 }
+
 
 }  // end namepsace discretization
