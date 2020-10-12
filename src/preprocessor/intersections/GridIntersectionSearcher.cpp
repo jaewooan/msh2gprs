@@ -1,6 +1,7 @@
 #include "GridIntersectionSearcher.hpp"
 #include "angem/CollisionGJK.hpp"  // collisionGJK
 #include "angem/Collisions.hpp"
+#include "Logger.hpp"
 
 namespace gprs_data {
 
@@ -44,20 +45,22 @@ GridIntersectionSearcher::collision(const angem::LineSegment<double> & segment)
   if (checker.check(segment, sg.get_bounding_box()))  // segment intersects the grid
   {
     // find first search location
-    angem::Point<3,double> cur = find_first_location_(segment);
+    const auto start_end = find_first_and_last_location_(segment);
     const angem::Line<3,double> line(segment.line());
 
+    auto cur = start_end.first;
     size_t search_idx = sg.find_cell(cur);
     std::unordered_set<size_t> processed;
     // line x = x0 + a * t;
     double t = get_t_(segment, cur);
-    const double t_stop = get_t_(segment, segment.second());
+    const double t_stop = std::min(get_t_(segment, segment.second()),
+                                   get_t_(segment, start_end.second));
     int nit = 0;
-    while (t < t_stop)
+    while (t <= t_stop)
     {
       const size_t search_cell = sg.find_cell(cur);
       process_(search_cell,result);
-      t += step_(search_cell, cur, segment);
+      t = step_(search_cell, cur, segment);
       cur =  segment.first() + line.direction() * t;
       nit++;
     }
@@ -65,23 +68,27 @@ GridIntersectionSearcher::collision(const angem::LineSegment<double> & segment)
   return std::vector<size_t>(result.begin(), result.end());
 }
 
-angem::Point<3,double>
+std::pair<angem::Point<3,double>,angem::Point<3,double>>
 GridIntersectionSearcher::
-find_first_location_(const angem::LineSegment<double> & segment) const
+find_first_and_last_location_(const angem::LineSegment<double> & segment) const
 {
   const auto & sg = _mapper.get_search_grid();
   std::vector<angem::Point<3,double>> intersection;
   angem::collision(segment, sg.get_bounding_box(), intersection);
-  auto loc = *std::min_element(intersection.begin(), intersection.end(),
+  std::sort(intersection.begin(), intersection.end(),
+  // auto loc = *std::min_element(intersection.begin(), intersection.end(),
                           [segment](const angem::Point<3,double> & p1, const angem::Point<3,double> & p2)
                           {
-                            return segment.first().distance(p1) < segment.second().distance(p2);
+                            // return segment.first().distance(p1) < segment.second().distance(p2);
+                            return segment.first().distance(p1) < segment.first().distance(p2);
                           });
-  if (!sg.in_bounds(loc))  // might be slightly off due to roundoff
-    loc += 1e-3 * segment.line().direction() * sg.stepping(0);
-  assert(sg.in_bounds(loc));
+  if (!sg.in_bounds(intersection[0]))  // might be slightly off due to roundoff
+    intersection[0] += 1e-3 * segment.line().direction() * sg.stepping(0);
+  if (!sg.in_bounds(intersection[1]))  // might be slightly off due to roundoff
+    intersection[1] -= 1e-3 * segment.line().direction() * sg.stepping(0);
+  assert(sg.in_bounds(intersection[0]));
 
-  return loc;
+  return {intersection[0], intersection[1]};
 }
 
 double GridIntersectionSearcher::get_t_(const angem::LineSegment<double> & segment, const angem::Point<3,double>& p) const
@@ -98,7 +105,9 @@ void GridIntersectionSearcher::process_(const size_t search_cell,
 {
   for (const size_t cell_index : _mapper.mapping(search_cell) )
     if (_grid.cell(cell_index).is_active())
+    {
       result.insert(cell_index);
+    }
 }
 
 double GridIntersectionSearcher::step_(size_t search_cell,
@@ -109,13 +118,13 @@ double GridIntersectionSearcher::step_(size_t search_cell,
   const auto & sg = _mapper.get_search_grid();
   const auto ijk = sg.get_ijk(search_cell);
   const double t_stop = get_t_(segment, segment.second());
-  double t_new = t_stop;
+  const double eps = 1e-4;
+  double t_new = t_stop + sg.stepping(0)*eps;
   const auto tangent = segment.line().direction();
 
   for (size_t i = 0; i < 3; ++i)
     if (std::isnormal(tangent(i)))  // nonzero
   {
-    const double eps = 1e-4;
     std::array<int, 3> candidate = ijk;
     if (sg.stepping(i) * tangent(i) > 0)  // same direction
       candidate[i] += 1;
@@ -137,24 +146,39 @@ std::vector<size_t> GridIntersectionSearcher::collision(const angem::Polygon<dou
     throw std::invalid_argument("Horizontal fractures not supported");
 
   const auto & sg = _mapper.get_search_grid();
-  auto bot = polygon.support({0, 0, -1});
-  if (bot[2] < bottom()) bot[2] = bottom();
-  bot[2] += 1e-2 * std::fabs(sg.stepping(2));
+  double bot = polygon.support({0, 0, -1})[2];
+  const double hz = sg.stepping(2);
+  const double eps_z = 1e-2 * std::fabs(sg.stepping(2));
 
-  auto top = polygon.support(vertical);
-  if (top[2] > this->top()) top[2] = this->top();
-  top[2] -= 1e-2 * std::fabs(sg.stepping(2));
+  if (bot > this->top()) throw std::invalid_argument("fracture not in bounds");
+  bot = std::max(bot, bottom() + eps_z);
 
-  const int start_k = sg.get_ijk(sg.find_cell(bot))[2];
-  const int end_k = sg.get_ijk(sg.find_cell(top))[2];
+  double top = polygon.support(vertical)[2];
+  if (top < bottom()) throw std::invalid_argument("fracture not in bounds");
+  top = std::min(top, this->top() - eps_z);
+
+  const int start_k = std::max<int>((bot - bottom()) / hz, int(0));
+  const int end_k = std::min<int>((top - this->bottom()) / hz, sg.nz()-1);
   std::unordered_set<size_t> result;
-  for (size_t k = start_k; k < end_k; ++k)
+  for (size_t k = start_k; k <= end_k; ++k)
   {
     // z-center of the layer
-    const double z = sg.origin()[2] + sg.stepping(2) * (k + 0.5);
+    // avoid stepping beyond the polygon top
+    const double z = std::min(sg.origin()[2] + hz * (k + 0.5), top - eps_z);
     const angem::Plane<double> section_plane(/*origin=*/{0, 0, z}, /*normal*/vertical);
     std::vector<angem::Point<3,double>> intersection;
     angem::collision(polygon, section_plane, intersection);
+    if (intersection.size() != 2)
+    {
+      std::cout << "k = " << k << std::endl;
+      std::cout << "z = " << z << std::endl;
+      std::cout << "poly" << std::endl;
+      for (auto p : polygon.get_points())
+        std::cout << p << std::endl;
+      std::cout << "section:" << std::endl;
+      for (auto p : intersection)
+        std::cout << p << std::endl;
+    }
     assert(intersection.size() == 2);
     angem::LineSegment<double> segment(intersection[0], intersection[1]);
     for (const size_t icell : collision(segment))

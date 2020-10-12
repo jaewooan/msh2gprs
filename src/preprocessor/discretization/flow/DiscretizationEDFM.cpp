@@ -16,11 +16,9 @@ DiscretizationEDFM(const DoFNumbering & split_dof_numbering,
                    gprs_data::SimData & data,
                    std::vector<ControlVolumeData> & cv_data,
                    std::vector<ConnectionData> & connection_data,
-                   const std::vector<int> & edfm_markers,
-                   const EDFMMethod method)
+                   const std::vector<int> & edfm_markers)
     : m_split_dofs(split_dof_numbering),
       m_edfm_markers( edfm_markers.begin(), edfm_markers.end() ),
-      m_method(method),
       DiscretizationBase(combined_dof_numbering, data, cv_data, connection_data)
 {}
 
@@ -28,32 +26,25 @@ void DiscretizationEDFM::build()
 {
   DiscretizationDFM discr_dfm(m_split_dofs, m_data, m_split_cv, m_split_con);
   discr_dfm.build();
-  if (m_method != EDFMMethod::compartmental)
-  {
-    identify_edfm_faces_();
-    if (m_edfm_faces.empty())
-    {
-      m_cv_data = std::move(m_split_cv);
-      m_con_data = std::move(m_split_con);
-      return;
-    }
 
-    build_control_volume_data_();
-    build_connection_data_();
-
-    if (m_method == EDFMMethod::projection)
-      build_pedfm_();
-
-    // copy to condata
-    m_con_data.reserve(m_con_map.size());
-    for (auto it = m_con_map.begin(); it != m_con_map.end(); ++it)
-      m_con_data.push_back(*it);
-  }
-  else
+  identify_edfm_faces_();
+  if (m_edfm_faces.empty())
   {
     m_cv_data = std::move(m_split_cv);
     m_con_data = std::move(m_split_con);
+    return;
   }
+
+  build_control_volume_data_();
+  build_connection_data_();
+
+  // if (m_method == EDFMMethod::projection)
+  //   build_pedfm_();
+
+  // copy to condata
+  m_con_data.reserve(m_con_map.size());
+  for (auto it = m_con_map.begin(); it != m_con_map.end(); ++it)
+    m_con_data.push_back(*it);
 }
 
 void DiscretizationEDFM::build_control_volume_data_()
@@ -288,11 +279,7 @@ void DiscretizationEDFM::build_pedfm_()
         const size_t face_dof = m_dofs.face_dof(face->index());
         // if already cleared, then skip
         if (cleared_connections.contains(cell_dof1, cell_dof2))
-        {
-        if (frac_cell.index() == 99 || iother_cell == 99)
-          std::cout << "already cleared" << std::endl;
           continue;
-        }
         // this happens when several edfm's in a cell
         if (iother_cell == frac_cell.index()) continue;
 

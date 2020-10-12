@@ -71,8 +71,9 @@ size_t CartesianMeshBuilder::cell_index(size_t i, size_t j, size_t k) const
 
 size_t CartesianMeshBuilder::vertex_index(size_t i, size_t j, size_t k) const
 {
-  if (k >= nvx() || j >= nvy() || k >= nvz())
-    throw std::invalid_argument("Wrong vertex index");
+  if (i >= nvx() || j >= nvy() || k >= nvz())
+    throw std::invalid_argument("Wrong vertex index " + std::to_string(i) +
+                                " " + std::to_string(j) + " " + std::to_string(k));
   return nvy()*nvx()*k + nvx()*j + i;
 }
 
@@ -111,18 +112,19 @@ void CartesianMeshBuilder::setup_vertices_(Mesh & grid) const
 void CartesianMeshBuilder::setup_cells_(Mesh & grid) const
 {
   const int domain_marker = 0;
-  const int left_boundary = 0;
-  const int right_boundary = 1;
-  const int front_boundary = 2;
-  const int back_boundary = 3;
-  const int bottom_boundary = 4;
-  const int top_boundary = 5;
+  const int left_boundary = 1;
+  const int right_boundary = 2;
+  const int front_boundary = 3;
+  const int back_boundary = 4;
+  const int bottom_boundary = 5;
+  const int top_boundary = 6;
 
   grid.cells().reserve(n_cells());
   for (size_t k = 0; k < nz(); ++k)
     for (size_t j = 0; j < ny(); ++j)
       for (size_t i = 0; i < nx(); ++i)
       {
+        // std::cout << k << " " << j << " " << i << std::endl;
         // create a hex: VTK vertex numbering
         const size_t v0 = vertex_index(i,   j,   k);
         const size_t v1 = vertex_index(i+1, j,   k);
@@ -132,7 +134,9 @@ void CartesianMeshBuilder::setup_cells_(Mesh & grid) const
         const size_t v5 = vertex_index(i+1, j,   k+1);
         const size_t v6 = vertex_index(i+1, j+1, k+1);
         const size_t v7 = vertex_index(i,   j+1, k+1);
-        const std::vector<size_t> cell_vertices = {v0, v1, v2, v3, v4, v5, v6, v7};
+        std::vector<size_t> cell_vertices = {v0, v1, v2, v3, v4, v5, v6, v7};
+        // prevent negative jacobian
+        if (_data.dz[k] < 0) cell_vertices = {v4, v5, v6, v7, v0, v1, v2, v3};
         grid.insert_cell(cell_vertices, angem::HexahedronID, domain_marker );
         if (i == 0)
           grid.insert_face({v0, v4, v7, v3}, angem::QuadrangleID, left_boundary);

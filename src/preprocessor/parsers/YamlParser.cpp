@@ -65,11 +65,11 @@ void YamlParser::embedded_fracs(const YAML::Node & node)
     {
       const std::string str_method = it->second.as<std::string>();
       if (str_method == "simple")
-        config.edfm_method = EDFMMethod::simple;
+        config.edfm_settings.method = EDFMMethod::simple;
       else if (str_method == "projection")
-        config.edfm_method = EDFMMethod::projection;
+        config.edfm_settings.method = EDFMMethod::projection;
       else if (str_method == "compartmental")
-        config.edfm_method = EDFMMethod::compartmental;
+        config.edfm_settings.method = EDFMMethod::compartmental;
       else
         throw std::invalid_argument(str_method);
     }
@@ -115,7 +115,16 @@ void YamlParser::embedded_fracs(const YAML::Node & node)
     }
     else if (key == "min_distance_to_vertices")
     {
-      config.edfm_min_dist_to_node = it->second.as<double>();
+      config.edfm_settings.min_dist_to_node = it->second.as<double>();
+    }
+    else if (key == "placement")
+    {
+      const auto value = it->second.as<std::string>();
+      if ( value == "move_fracture" )
+        config.edfm_settings.placement = FracturePlacement::move_fracture;
+      else if ( value == "move_grid" )
+        config.edfm_settings.placement = FracturePlacement::move_grid;
+      else throw std::invalid_argument("wrong edfm placing strategy");
     }
     else if (key == "solver")
     {
@@ -129,7 +138,7 @@ void YamlParser::embedded_fracs(const YAML::Node & node)
       config.fem.solver_tolerance = values.second;
     }
     else
-      std::cout << "\t\tattribute " << key << " unknown: skipping" << std::endl;
+      throw std::invalid_argument( "\t\tattribute " + key + " unknown: skipping");
   }
 }
 
@@ -155,6 +164,8 @@ void YamlParser::discrete_fracs(const YAML::Node & node)
     }
     else if (key == "file")
       config.gprs_output.discrete_frac_file = it->second.as<std::string>();
+    else if (key == "split_vertices")
+      config.dfm_settings.split_mech_vertices = it->second.as<bool>();
     else
       std::cout << "\t\tattribute " << key << " unknown: skipping" << std::endl;
   }
@@ -673,6 +684,10 @@ void YamlParser::section_mesh(const YAML::Node & node)
       conf.type = MeshType::cartesian;
       subsection_cartesian_grid(it->second);
     }
+    else if (key == "refinement")
+    {
+      subsection_refinement(it->second);
+    }
     else throw std::invalid_argument("Unknown key " + key);
   }
 }
@@ -701,6 +716,29 @@ void YamlParser::subsection_cartesian_grid(const YAML::Node & node)
   conf.dy.assign(dimens[1], diff[1] / dimens[1]);
   conf.dz.assign(dimens[2], diff[2] / dimens[2]);
   conf.origin = origin;
+}
+
+void YamlParser::subsection_refinement(const YAML::Node & node)
+{
+  auto & conf  = config.mesh_config.refinement;
+  for (auto it = node.begin(); it!=node.end(); ++it)
+  {
+    const std::string key = it->first.as<std::string>();
+    std::cout << "\t\treading key: " << key << std::endl;
+    if (key == "type")
+    {
+      const std::string value = it->second.as<std::string>();
+      if (value == "aspect_ratio")
+        conf.type = RefinementType::aspect_ratio;
+      else throw std::invalid_argument("invalid refinement type");
+    }
+    else if (key == "aspect_ratio")
+      conf.aspect_ratio = it->second.as<double>();
+    else if (key == "max_level")
+      conf.max_level = it->second.as<size_t>();
+    else throw std::invalid_argument("invalid refinement key");
+  }
+
 }
 
 }  // end namespace

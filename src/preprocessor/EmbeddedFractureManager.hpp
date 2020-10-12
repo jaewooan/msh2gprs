@@ -28,8 +28,7 @@ class EmbeddedFractureManager
    * @param[out] data             : container for output data
    */
   EmbeddedFractureManager(std::vector<EmbeddedFractureConfig> &config,
-                          const EDFMMethod edfm_method,
-                          const double min_dist_to_node,
+                          const EDFMSettings & settings,
                           SimData & data);
 
   /**
@@ -69,16 +68,14 @@ class EmbeddedFractureManager
    * @return {std::vector<int>}  : vector of unique face markers that describe split edfm cells
    */
   std::vector<int> get_face_markers() const;
-  /**
-   * Build edfm surface grid for vtk output
-   * This fills SimData::edfm_grid and SimData::edfm_cell_mapping
-   * @param  {discretization::DoFNumbering} dofs : flow degrees of freedom of edfm cells
-   */
-  // void build_edfm_grid(const discretization::DoFNumbering & dofs);
   // map SDA cells to edfm control volumes
   // do it only after coarsening the grid
   // and distribute mechanical properties
   void map_mechanics_to_control_volumes(const discretization::DoFNumbering & dofs);
+  // get fracture polyhedron
+  const angem::Polygon<double> & fracture_shape(int face_marker) const;
+  // get the number of embedded fractures
+  size_t n_fractures() const noexcept;
 
  private:
   bool find_edfm_cells_(angem::Polygon<double> & fracture, std::vector<size_t> & cells);
@@ -90,12 +87,15 @@ class EmbeddedFractureManager
   int find_maximum_face_marker_() const;
   // wrapper around m_marker_config;
   size_t fracture_index_(const int face_marker) const;
+  void move_vertex_(size_t v, const angem::Polygon<double> & fracture);
+  angem::Point<3,double> determine_move_direction_(size_t v, const angem::Polygon<double> & fracture,
+                                                   const std::vector<angem::Point<3,double>> & constraints);
   // ------------------ Variables ----------------- //
   // non-const cause we move fractures to avoid collision with vertices
   std::vector<EmbeddedFractureConfig> &config;
   EDFMMethod m_method;                  // regular edfm, pedfm, or cedfm
   // minimum distance from fracture to vertex relative to the cell size
-  const double _min_dist_to_node;
+  const EDFMSettings _settings;
   SimData & m_data;                     // container for output data
   mesh::Mesh & m_grid;                  // reference to grid object
   std::map<int,size_t> m_marker_config; // marker to config index

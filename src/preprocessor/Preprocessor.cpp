@@ -3,11 +3,13 @@
 #include "gmsh_interface/GmshInterface.hpp"
 #include "mesh/CartesianMeshBuilder.hpp"
 #include "mesh/io/VTKReader.hpp"
+#include "mesh/RefinementAspectRatio.hpp"
 #include "BoundaryConditionManager.hpp"
 #include "discretization/mechanics/DiscretizationFEM.hpp"
 #include "discretization/flow/DiscretizationTPFA.hpp"
-#include "discretization/flow/DiscretizationEDFM.hpp"
 #include "discretization/flow/DiscretizationDFM.hpp"
+#include "discretization/flow/DiscretizationEDFM.hpp"
+#include "discretization/flow/DiscretizationPEDFM.hpp"
 #include "GridEntityNumberingManager.hpp"
 #include "MultiScaleDataMech.hpp"
 #include "DoFManager.hpp"
@@ -60,8 +62,8 @@ void Preprocessor::run()
   // create discrete fracture manager
   logging::log() << "Initializing Fracture managers" << std::endl;
   pm_dfm_mgr = std::make_shared<DiscreteFractureManager>(config.discrete_fractures, data);
-  pm_edfm_mgr = std::make_shared<EmbeddedFractureManager>(config.embedded_fractures, config.edfm_method,
-                                                          config.edfm_min_dist_to_node, data);
+  pm_edfm_mgr = std::make_shared<EmbeddedFractureManager>(config.embedded_fractures,
+                                                          config.edfm_settings, data);
 
   // copy geomechanics grid since base grid will be split
   data.geomechanics_grid = data.grid;
@@ -70,6 +72,15 @@ void Preprocessor::run()
   logging::important() << "Splitting cells..." << std::flush;
   pm_edfm_mgr->split_cells();
   logging::important() << "Finished splitting cells" << std::endl << std::flush;
+
+  if (config.mesh_config.refinement.type != RefinementType::none)
+  {
+    logging::important() << "Peforming Grid Refinement" << std::endl;
+    if (config.mesh_config.refinement.type == RefinementType::aspect_ratio)
+      mesh::RefinementAspectRatio refinement(data.grid, config.mesh_config.refinement.aspect_ratio,
+                                             config.mesh_config.refinement.max_level);
+    logging::important() << "Finished Grid Refinement" << std::endl;
+  }
 
   logging::important() << "Building flow discretization" << "\n";
   build_flow_discretization_();
@@ -94,7 +105,7 @@ void Preprocessor::run()
   data.dfm_cell_mapping = pm_cedfm_mgr->map_dfm_grid_to_flow_dofs(data.grid, *data.flow_numbering);
 
   // remove fine cells
-  if (config.edfm_method != EDFMMethod::compartmental)
+  if (config.edfm_settings.method != EDFMMethod::compartmental)
   {
     data.grid.coarsen_cells();
     // pm_property_mgr->coarsen_cells();
@@ -233,30 +244,46 @@ void Preprocessor::build_flow_discretization_()
   std::shared_ptr<DoFNumbering> p_split_dofs = dof_manager.distribute_dofs();
   std::shared_ptr<DoFNumbering> p_unsplit_dofs = dof_manager.distribute_unsplit_dofs();
 
-  // build edfm discretization from mixed dfm-edfm discretization
-  discretization::DiscretizationEDFM discr_edfm(*p_split_dofs, *p_unsplit_dofs, data, data.cv_data,
-                                                data.flow_connection_data, edfm_markers, config.edfm_method);
+  using namespace discretization;
+  std::unique_ptr<DiscretizationBase> flow_discr;
+  switch (config.edfm_settings.method)
+  {
+    case (EDFMMethod::simple):
+      flow_discr = std::make_unique<DiscretizationEDFM>
+          (*p_split_dofs, *p_unsplit_dofs, data, data.cv_data,
+           data.flow_connection_data, edfm_markers);
+      break;
+    case (EDFMMethod::projection):
+      flow_discr = std::make_unique<DiscretizationPEDFM>
+          (*p_split_dofs, *p_unsplit_dofs, data, data.cv_data,
+           data.flow_connection_data, *pm_edfm_mgr);
+    break;
+    case (EDFMMethod::compartmental):
+      flow_discr = std::make_unique<DiscretizationDFM>
+          (*p_split_dofs, data, data.cv_data, data.flow_connection_data);
+    break;
+  }
   // if we do cedfm use the split matrix dof numbering
   // else use unsplit matrix dofs
-  if ( config.edfm_method == EDFMMethod::compartmental )
+  if ( config.edfm_settings.method == EDFMMethod::compartmental )
     data.flow_numbering = p_split_dofs;
   else
     data.flow_numbering = p_unsplit_dofs;
 
   logging::debug() << "invoke discretization class" << std::endl;
-  discr_edfm.build();
+  flow_discr->build();
 
   // setup wells
   if (!config.wells.empty())
   {
     logging::log() << "setup wells" << std::endl;
-    WellManager well_mgr(config.wells, data, *data.flow_numbering, config.edfm_method);
+    WellManager well_mgr(config.wells, data, *data.flow_numbering, config.edfm_settings.method);
     well_mgr.setup();
   }
 
   // used for coupling later on
-  if ( config.edfm_method != EDFMMethod::compartmental )
-    pm_dfm_mgr->distribute_properties();
+  // if ( config.edfm_settings.method != EDFMMethod::compartmental )
+  //   pm_dfm_mgr->distribute_properties();
 }
 
 void Preprocessor::build_geomechanics_discretization_()
@@ -300,16 +327,13 @@ void Preprocessor::build_geomechanics_discretization_()
 
   GridEntityNumberingManager mech_numbering_mgr(data.geomechanics_grid);
   data.mech_numbering = std::shared_ptr<discretization::DoFNumbering>(mech_numbering_mgr.get_numbering());
-  // for (auto cell = data.geomechanics_grid.begin_active_cells(); cell != data.geomechanics_grid.end_active_cells(); ++cell)
-  //   if (data.mech_numbering->cell_dof(cell->index()) == 750)
-  //   {
-  //     std::cout << "yay " << cell->index() << " " << data.mech_numbering->cell_dof(cell->index()) << std::endl;
-  //     exit(0);
-  //   }
 
   // split geomechanics DFM faces
-  logging::log() << "Splitting faces of DFM fractures" << std::endl;
-  p_frac_mgr->split_faces(data.geomechanics_grid);
+  if (config.dfm_settings.split_mech_vertices)
+  {
+    logging::log() << "Splitting faces of DFM fractures" << std::endl;
+    p_frac_mgr->split_faces(data.geomechanics_grid);
+  }
 
   // build mechanics boundary conditions
   logging::log() << "Building mechanics boundary conditions" << std::endl;
