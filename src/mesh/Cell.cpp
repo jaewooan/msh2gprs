@@ -1,5 +1,6 @@
 #include "Cell.hpp"
 #include "angem/PolyhedronFactory.hpp"
+#include <set>
 
 namespace mesh
 {

@@ -1,5 +1,6 @@
 #include "RefinementAspectRatio.hpp"
 #include "io/VTKWriter.hpp"
+#include <list>
 
 namespace mesh {
 

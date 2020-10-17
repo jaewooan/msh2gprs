@@ -2,6 +2,7 @@
 #include "angem/CollisionGJK.hpp"  // collisionGJK
 #include <queue>
 #include "logger/Logger.hpp"
+#include <set>
 
 namespace gprs_data {
 
