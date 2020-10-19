@@ -10,6 +10,7 @@
 #include "MultiScaleOutputData.hpp"                       // provides multiscale::MultiScaleOutputData
 #include "angem/Tensor2.hpp"                              // provides angem::Tensor2
 #include <unordered_map>
+#include <set>
 
 namespace gprs_data {
 
@@ -104,7 +105,7 @@ struct SimData
   multiscale::MultiScaleOutputData ms_mech_data;
   // ----------------------- Other ---------------------- //
   std::vector<std::vector<size_t>> gmcell_to_flowcells; // Geomechanics cell -> Flow cells in each geomech cell.
-  std::vector<std::vector<size_t>> gmcell_to_SDA_flowcells; // Geomechanics cell in EDFM -> Flow cells in each geomech cell in EDFM.
+  std::vector<std::map<size_t, std::set<size_t>>> gmcell_to_SDA_flowcells; // Geomechanics cell in EDFM -> Flow cells in each geomech cell in EDFM.
   // Helps to search iintersections fast
   std::unique_ptr<GridIntersectionSearcher> grid_searcher;
   // --------------------- Methods --------------------------------- //

@@ -329,12 +329,14 @@ void OutputDataGPRS::save_embedded_fractures_(const std::string file_name) const
   // "GM_EFRAC_CELLS".
   // The order is the same as in the order of geomechanics cells in "GM_EFRAC_CELLS".
   out << "GM_EFRAC_TO_FLOWCELLS" << std::endl;
-  for (const auto & frac : _data.sda_data)
+  for (size_t ifrac = 0; ifrac < _data.sda_data.size(); ifrac++)
   {
+    const auto & frac = _data.sda_data[ifrac];
     for (size_t i=0; i < frac.cells.size(); ++i)
     {
       const size_t mech_cell = _data.mech_numbering->cell_dof(frac.cells[i]);
-      std::vector<size_t> flow_cells = _data.gmcell_to_SDA_flowcells[mech_cell]; // flow cells of geo cells in GM_EFRAC_CELLS
+      std::map<size_t, std::set<size_t>> flowData = _data.gmcell_to_SDA_flowcells[mech_cell]; 
+      std::set<size_t> flow_cells = flowData[ifrac]; // flow cells of geo cells in GM_EFRAC_CELLS
       if (flow_cells.size() == 0) // uncoupled case
         out << 0 << "\t" << -1 << std::endl;
       else // coupled case

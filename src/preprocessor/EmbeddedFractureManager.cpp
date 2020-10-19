@@ -201,8 +201,15 @@ map_mechanics_to_control_volumes(const discretization::DoFNumbering & dofs)
       const size_t mech_cell = m_grid.cell(frac.cells[icell]).ultimate_parent().index();
       assert( mech_cell < m_data.gmcell_to_SDA_flowcells.size() );
       for (const size_t iface : frac.faces[icell]){
-        if( m_data.coupling[dofs.face_dof(iface)]) // coupled
-            m_data.gmcell_to_SDA_flowcells[mech_cell].push_back( dofs.face_dof(iface) );
+        if( m_data.coupling[dofs.face_dof(iface)]){ // coupled
+            if( m_data.gmcell_to_SDA_flowcells[mech_cell].find(ifrac) == m_data.gmcell_to_SDA_flowcells[mech_cell].end()){
+              std::set<size_t> tempDof = {dofs.face_dof(iface)};
+              m_data.gmcell_to_SDA_flowcells[mech_cell].insert(std::make_pair(ifrac, tempDof));
+            }
+            else{
+              m_data.gmcell_to_SDA_flowcells[mech_cell][ifrac].insert(dofs.face_dof(iface));
+            }
+        }
         else // uncoupled
             config[ifrac].coupled = false;
       }

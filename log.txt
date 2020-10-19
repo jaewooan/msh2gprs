@@ -1,0 +1,41 @@
+reading config file: "/mnt/c/Users/goldh/Google Drive/research result/coupled_intersection/simple/open/input/conf.yaml"
+Reading "/mnt/c/Users/goldh/Google Drive/research result/coupled_intersection/simple/open/input/conf.yaml"
+finished reading config
+Reading mesh file: "/mnt/c/Users/goldh/Google Drive/research result/coupled_intersection/simple/open/input/cartesian.msh"
+extension: msh
+Generating properties
+Setting up function parsers with the following set of variables: 
+x	y	z	
+RTEMP	PORO	PERM	
+SWAT	PRESSURE	GMCELL_MODEL	
+GMCELL_DENSITY	GMCELL_BIOT	GMCELL_BIOT_FLOW	
+GMREF_TEMPERATURE	GMCELL_POISSON	GMCELL_YOUNG	
+GMREF_PRESSURE	
+Initializing grid searcher
+Indexing, overlay grid: 5329 dimensions = (73, 73, 1)
+bounding box -100	-100	-10 to 100 100 0
+Initializing Fracture managers
+Splitting cells...Finished splitting cells
+Building flow discretization
+invoke discretization class
+Finished flow discretization
+Splitting faces of DFM fractures
+Building mechanics boundary conditions
+Building FEM discretization
+Write Output data
+cleaning directory "/mnt/c/Users/goldh/Google Drive/research result/coupled_intersection/simple/open/input/output"
+creating directory "/mnt/c/Users/goldh/Google Drive/research result/coupled_intersection/simple/open/input/output"
+Output gprs format
+saving flow Control Volume data: /mnt/c/Users/goldh/Google Drive/research result/coupled_intersection/simple/open/input/output/fl_cell_data.txt
+saving flow Connection data: /mnt/c/Users/goldh/Google Drive/research result/coupled_intersection/simple/open/input/output/fl_face_data.txt
+saving transmissibility update formulas data: /mnt/c/Users/goldh/Google Drive/research result/coupled_intersection/simple/open/input/output/fl_face_data.txt
+saving mechaanics geometry: /mnt/c/Users/goldh/Google Drive/research result/coupled_intersection/simple/open/input/output/gm_geometry.txt
+saving FEM data: /mnt/c/Users/goldh/Google Drive/research result/coupled_intersection/simple/open/input/output/gm_fem.txt
+saving geomechanics keywords: /mnt/c/Users/goldh/Google Drive/research result/coupled_intersection/simple/open/input/output/gm_keywords.txt
+saving geomech boundary conditions: /mnt/c/Users/goldh/Google Drive/research result/coupled_intersection/simple/open/input/output/gm_bcond.txt
+saving mech embedded fracture data: /mnt/c/Users/goldh/Google Drive/research result/coupled_intersection/simple/open/input/output/gm_SDA.txt
+Output vtk format
+writing /mnt/c/Users/goldh/Google Drive/research result/coupled_intersection/simple/open/input/output/flow_reservoir_mesh.vtk
+writing /mnt/c/Users/goldh/Google Drive/research result/coupled_intersection/simple/open/input/output/mechanics_reservoir_mesh.vtk
+Saving DFM mesh file: /mnt/c/Users/goldh/Google Drive/research result/coupled_intersection/simple/open/input/output/fractures.vtk
+Output postprocessor format
