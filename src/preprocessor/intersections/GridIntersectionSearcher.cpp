@@ -77,10 +77,8 @@ find_first_and_last_location_(const angem::LineSegment<double> & segment) const
   std::vector<angem::Point<3,double>> intersection;
   angem::collision(segment, sg.get_bounding_box(), intersection);
   std::sort(intersection.begin(), intersection.end(),
-  // auto loc = *std::min_element(intersection.begin(), intersection.end(),
                           [segment](const angem::Point<3,double> & p1, const angem::Point<3,double> & p2)
                           {
-                            // return segment.first().distance(p1) < segment.second().distance(p2);
                             return segment.first().distance(p1) < segment.first().distance(p2);
                           });
   if (!sg.in_bounds(intersection[0]))  // might be slightly off due to roundoff
@@ -168,7 +166,7 @@ std::vector<size_t> GridIntersectionSearcher::collision(const angem::Polygon<dou
   std::unordered_set<size_t> result;
   for (size_t k = start_k; k <= end_k; ++k)
   {
-    std::cout << "\n searching layer " << k << std::endl;
+    // std::cout << "\n searching layer " << k << std::endl;
     // z-center of the layer
     // avoid stepping beyond the polygon top
     const double z = std::min(sg.origin()[2] + hz * (k + 0.5), top - eps_z);
@@ -191,12 +189,7 @@ std::vector<size_t> GridIntersectionSearcher::collision(const angem::Polygon<dou
     for (const size_t icell : collision(segment))
       result.insert(icell);
   }
-  std::cout << "result" << std::endl;
-  for (auto cell : result)
-    std::cout << cell << " ";
-  std::cout << std::endl;
-  std::cout << "exiting" << std::endl;
-  // exit(0);
+
   return std::vector<size_t>(result.begin(), result.end());
 }
 
